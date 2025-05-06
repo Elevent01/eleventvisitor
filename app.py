@@ -22,12 +22,12 @@ from flask_wtf import FlaskForm
 from wtforms import BooleanField, SubmitField
 from functools import wraps
 from wtforms.csrf.core import CSRF
-from flask_jwt_extended import JWTManager, jwt_required
+
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
-jwt = JWTManager(app)
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
