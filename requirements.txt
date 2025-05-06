@@ -1,6 +1,5 @@
 ﻿asgiref==3.8.1
 bcrypt==4.2.0
-Flask-JWT-Extended==4.6.0
 blinker==1.8.2
 click==8.1.7
 cmake==3.31.1
@@ -22,7 +21,6 @@ packaging==24.2
 pillow==11.0.0
 psycopg2==2.9.9
 psycopg2-binary==2.9.9
-PyJWT==1.4.2
 python-dotenv==1.0.1
 setuptools==78.1.0
 SQLAlchemy==2.0.35
