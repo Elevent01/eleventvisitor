@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitor Records Management</title>
+    
+    
+    <style>
+               :root {
+            --primary-color: #4CAF50;
+            --primary-light: #E8F5E9;
+            --primary-dark: #1B5E20;
+            --accent-color: #8BC34A;
+            --text-dark: #263238;
+            --text-light: #546E7A;
+            --border-color: #C8E6C9;
+            --background-light: #F9FFF9;
+            --box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            font-size: 0.9rem; /* Reduced text size */
+        }
+
+        .container-fluid {
+            max-width: 1100px;
+            margin: 2px auto;
+            padding: 0;
+            background-color: transparent;
+            display: block !important;
+            visibility: visible !important;
+            position: relative;
+        }
+
+        .card-header {
+            background-color: white;
+            border-radius: 8px 8px 0 0;
+            padding: 15px;
+            margin-bottom: 0; 
+            box-shadow: var(--box-shadow);
+            border-top: 4px solid #1B5E20;
+            border-left: 2px solid rgba(59, 100, 112, 0.255);
+            border-right: 2px solid rgba(59, 100, 112, 0.255);
+            border-bottom: none;
+            position: relative; 
+            z-index: 2; 
+        }
+
+        .card-header::after {  
+            content: '';  
+            display: block;  
+            height: 2px; 
+            background-color: rgba(76, 175, 80, 0.2); 
+            margin: 0 15px; 
+            position: absolute;  
+            left: 0; 
+            bottom: -2px; 
+            right: 0; 
+        }
+
+        .card-body {
+            border-left: 2px solid rgba(59, 100, 112, 0.255);
+            border-right: 2px solid rgba(59, 100, 112, 0.255);
+            border-bottom: 2px solid rgba(59, 100, 112, 0.255);
+            border-radius: 0 0 8px 8px;
+            padding: 15px;
+            margin-top: 0;
+            background-color: white;
+        }
+
+        .card-title {
+            color: var(--primary-dark);
+            margin: 0;
+            padding: 0;
+            font-size: 1.3rem; /* Slightly reduced title size */
+            font-weight: 600;
+        }
+
+        .table-responsive table {
+            width: 100%;
+            margin: 15px 0 0 0;
+            border-collapse: collapse;
+            font-size: 0.8rem; /* Reduced table text size */
+        }
+
+        .table-responsive table, .table-responsive th, .table-responsive td {
+            border: 1px solid var(--border-color);
+        }
+
+        .table-responsive th, .table-responsive td {
+            padding: 6px 10px;
+            vertical-align: middle;
+            text-align: left;
+        }
+
+        .table-responsive th {
+            font-weight: 600;
+            color: var(--primary-dark);
+            background-color: var(--primary-light);
+        }
+
+        .table-responsive tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .table-responsive tr:hover {
+            background-color: rgba(0, 123, 255, 0.05);
+        }
+
+        /* Enhanced table styles */
+        .table-responsive {
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .badge {
+            font-size: 85%;
+            font-weight: 500;
+            padding: 0.4em 0.6em;
+            border-radius: 0.25rem;
+        }
+
+        .visit-dropdown {
+            width: 100%;
+            padding: 4px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .hidden-row {
+            display: none;
+        }
+
+        .show-more-container {
+            text-align: center;
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .show-more-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 8px 20px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .show-more-btn:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .show-more-btn i {
+            margin-left: 8px;
+        }
+
+        /* Table styles */
+        .table-hover tbody tr:hover {
+            background-color: rgba(0, 123, 255, 0.05);
+        }
+
+        /* Select2 fixes */
+        .select2-container {
+            width: 100% !important;
+        }
+
+        .select2-container--default .select2-selection--single {
+            height: calc(1.5em + 0.5rem + 2px);
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+            border-radius: 0.2rem;
+        }
+    </style>
+</head>
+<body>
+    {% extends "dashboard.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Main Card -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="card-title mb-0">All Visitor Records</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Main Table -->
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="visitorsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Total Visits</th>
+                                    <th>Last Visit Status</th>
+                                    <th>Zone</th>
+                                    <th>Visit Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for visitor in unique_visitors %}
+                                <tr>
+                                    <td>{{ visitor.FirstName }} {{ visitor.LastName }}</td>
+                                    <td>{{ visitor.Email }}</td>
+                                    <td>{{ visitor.Phone }}</td>
+                                    <td>{{ visitor.TotalVisits }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if visitor.LastVisitStatus == 'Completed' else 'warning' }}">
+                                            {{ visitor.LastVisitStatus }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ 'danger' if visitor.ZoneStatus == 'red zone' else 'success' }}">
+                                            {{ visitor.ZoneStatus }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm visit-dropdown" onchange="viewVisitDetails(this.value)">
+                                            <option value="">Select Visit</option>
+                                            {% for visit in visitor.Visits %}
+                                            <option value="{{ url_for('view_model_visitor', visitor_id=visitor.VisitorId, appointment_id=visit.AppointmentId) }}">
+                                                {{ visit.VisitDate }} - {{ visit.VisitStatus }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Initialize DataTables
+$(document).ready(function() {
+    // Main visitors table
+    $('#visitorsTable').DataTable({
+        pageLength: 25,
+        order: [[4, 'desc']],
+        responsive: true
+    });
+
+    // Initialize Select2
+    $('.visit-dropdown').select2({
+        placeholder: "Select a visit",
+        allowClear: true,
+        dropdownParent: $('body')
+    });
+});
+
+// Visit details navigation
+function viewVisitDetails(url) {
+    if (url) {
+        window.location.href = url;
+    }
+}
+</script>
+
+<style>
+/* Table styles */
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.badge {
+    font-size: 85%;
+    font-weight: 500;
+    padding: 0.4em 0.6em;
+}
+
+/* Select2 fixes */
+.select2-container {
+    width: 100% !important;
+}
+
+.select2-container--default .select2-selection--single {
+    height: calc(1.5em + 0.5rem + 2px);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    border-radius: 0.2rem;
+}
+</style>
+{% endblock %}
+</body>
+</html>

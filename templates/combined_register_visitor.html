@@ -1,0 +1,2037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Combined Register Visitor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        /* Root variables */
+        :root {
+            --primary-color: #4CAF50;
+            --primary-light: #E8F5E9;
+            --primary-dark: #1B5E20;
+            --accent-color: #8BC34A;
+            --text-dark: #263238;
+            --text-light: #546E7A;
+            --border-color: #C8E6C9;
+            --background-light: #F9FFF9;
+            --box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+        }
+
+        body {
+            background-color: #F5F7F5;
+            color: var(--text-dark);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 2px auto;
+            padding: 0;
+            background-color: transparent;
+            display: block !important;
+            visibility: visible !important;
+            position: relative;
+        }
+
+        /* Kept existing CSS for hidden elements */
+        /* Hide Check-in Time Column */
+        .table th:nth-child(7),
+        .table td:nth-child(7) {
+            display: none;
+        }
+
+        /* Hide Check-out Time Column */
+        .table th:nth-child(8),
+        .table td:nth-child(8) {
+            display: none;
+        }
+
+        /* Hide Update Button */
+        .btn-warning[href*="edit_visitor"] {
+            display: none;
+        }
+        
+        #visitor-form {
+            display: none; 
+        }
+
+        /* Search section styling - updating to match second file */
+        .row.mb-3 {
+            background: white;
+            padding: 15px;
+            margin: 0 0 0 0;
+            border-radius: 8px 8px 0 0;
+            border-top: 4px solid #1B5E20;
+            border-left: 2px solid rgba(59, 100, 112, 0.255);
+            border-right: 2px solid rgba(59, 100, 112, 0.255);
+            border-bottom: none;
+            position: relative;
+            z-index: 2;
+        }
+
+        .row.mb-3::after {  
+            content: '';  
+            display: block;  
+            height: 2px; 
+            background-color: rgba(76, 175, 80, 0.2); 
+            margin: 0 15px; 
+            position: absolute;  
+            left: 0; 
+            bottom: -2px; 
+            right: 0; 
+        }
+
+        /* Make search container take full width */
+        .row.mb-3 .col-md-8 {
+            width: 100%;
+            max-width: 100%;
+            flex: 0 0 100%;
+        }
+
+        /* Style the search input and buttons */
+        .row.mb-3 input.form-control {
+            border: 1px solid var(--border-color);
+            background-color: white;
+            color: var(--text-dark);
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .row.mb-3 input.form-control::placeholder {
+            color: var(--text-light);
+        }
+
+        /* Style the search buttons */
+        .row.mb-3 .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        .row.mb-3 .btn-primary:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .row.mb-3 .btn-success {
+            background-color: var(--primary-color);
+            border: none;
+        }
+
+        .row.mb-3 .btn-success:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .row.mb-3 .btn-warning {
+            background-color: #ffc107;
+            color: black;
+        }
+
+        .row.mb-3 .btn-warning:hover {
+            background-color: #e0a800;
+        }
+
+        /* Reset search button */
+        .row.mb-3 .btn-secondary {
+            background-color: #90A4AE;
+            color: white;
+            border: none;
+            transition: all 0.3s ease;
+            width: 100%;
+            text-align: center;
+        }
+
+        .row.mb-3 .btn-secondary:hover {
+            background-color: #607D8B;
+        }
+
+        /* Table styling */
+        .table-responsive {
+            margin: 0;
+            padding: 0;
+            border-left: 2px solid rgba(59, 100, 112, 0.255);
+            border-right: 2px solid rgba(59, 100, 112, 0.255);
+            border-bottom: 2px solid rgba(59, 100, 112, 0.255);
+            background-color: white;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .table {
+            width: 100%;
+            margin: 0;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        /* Table Headers */
+        table thead tr {
+            background-color: var(--primary-light);
+        }
+
+        .table th {
+            font-weight: 600;
+            color: var(--primary-dark);
+            background-color: var(--primary-light);
+            padding: 8px 10px;
+            text-align: center;
+            vertical-align: middle;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Table Cells */
+        .table td {
+            padding: 6px 10px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* Badge Styles */
+        .badge {
+            padding: 3px 6px;
+            font-size: 11px;
+            border-radius: 3px;
+        }
+
+        .status-completed {
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .status-warning {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        /* Action buttons */
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .btn-warning {
+            background-color: #ffc107;
+            color: black;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-warning:hover {
+            background-color: #e0a800;
+        }
+
+        /* Connect Reset Search button section directly with table */
+        .col-md-8 .mt-2 {
+            margin-top: 0.5rem !important;
+            margin-bottom: 0 !important;
+        }
+
+        /* Force connection between containers */
+        .container.mt-1 {
+            padding-bottom: 0 !important;
+        }
+
+        /* Photo container */
+        .photo-container {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .photo-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Form styling - keeping the same but updating colors */
+        .mb-3 {
+            margin-bottom: 15px;
+        }
+
+        .form-control {
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        .form-label {
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+    </style>
+    
+</head>
+<body>
+    {% extends "dashboard.html" %}
+
+    {% block content %}
+    <div class="container mt-1">
+       <!-- Search and Filter Section
+       <div class="row mb-4">
+           <!-- Search Form 
+           <div class="col-md-8">
+               <form method="GET" class="form-inline">
+                   <div class="input-group">
+                       <input type="text" name="search" class="form-control" placeholder="Search..." value="{{ search }}">
+                       <select name="search_type" class="form-select">
+                           <option value="name" {% if search_type == 'name' %}selected{% endif %}>Name</option>
+                           <option value="email" {% if search_type == 'email' %}selected{% endif %}>Email</option>
+                           <option value="phone" {% if search_type == 'phone' %}selected{% endif %}>Phone</option>
+                       </select>
+                       <button type="submit" name="search_submit" class="btn btn-primary">Search</button>
+                   </div>
+               </form>
+           </div>
+           
+           <!-- Zone Filter 
+           <div class="col-md-4">
+               <form method="GET" class="form-inline">
+                   <div class="input-group">
+                       <select name="zone_filter" class="form-select">
+                           <option value="">All Zones</option>
+                           <option value="green" {% if selected_zone == 'green' %}selected{% endif %}>Green Zone</option>
+                           <option value="red" {% if selected_zone == 'red' %}selected{% endif %}>Red Zone</option>
+                           <option value="pending" {% if selected_zone == 'pending' %}selected{% endif %}>Pending</option>
+                       </select>
+                       <button type="submit" name="zone_submit" class="btn btn-secondary">Filter</button>
+                   </div>
+               </form>
+           </div>
+       </div>-->
+                                           
+       <!-- New email search form 
+       <form id="email-search-form" class="mb-4">
+           <div class="input-group">
+               <input type="email" class="form-control" id="search-email" placeholder="Search by email" required>
+               <button class="btn btn-primary" type="submit">Search</button>
+           </div>
+       </form>
+    
+       <!-- Search results container 
+       <div id="searchResults" class="card">
+           <div class="card-body">
+               <h5 class="card-title">Search Results</h5>
+               <div id="visitorInfo"></div>
+               <button id="updateVisitor" class="btn btn-warning mt-3">Update Visitor</button>
+           </div>
+       </div> -->
+    
+       <form id="visitor-form" method="POST" action="{{ url_for('combined_register_visitor') }}" enctype="multipart/form-data">
+           <!-- Existing form fields -->
+           <div class="row">
+               <div class="col">
+                   <div class="mb-3">
+                       <label for="first_name" class="form-label">First Name</label>
+                       <input type="text" class="form-control" name="first_name" required>
+                   </div>
+               </div>
+               <div class="col">
+                   <div class="mb-3">
+                       <label for="last_name" class="form-label">Last Name</label>
+                       <input type="text" class="form-control" name="last_name" required>
+                   </div>
+               </div>
+           </div>
+    
+           <div class="mb-3">
+               <label for="email" class="form-label">Email</label>
+               <input type="email" class="form-control" name="email" required>
+           </div>
+    
+           <div class="mb-3">
+               <label for="phone" class="form-label">Phone</label>
+               <input type="text" class="form-control" name="phone" required>
+           </div>
+    
+           <div class="mb-3">
+               <label for="visit_date" class="form-label">Visit Date</label>
+               <input type="date" class="form-control" name="visit_date" required>
+           </div>
+    
+           <div class="mb-3">
+               <label for="visit_purpose" class="form-label">Visit Purpose</label>
+               <input type="text" class="form-control" name="visit_purpose" required>
+           </div>
+           <div class="mb-3">
+               <label for="company">Company:</label>
+               <input type="text" id="company" class="form-control" value="{{ employee_company }}" readonly>
+           </div>
+           
+           <div class="mb-3">
+               <label for="visit_area">Visit Area:</label>
+               <select id="visit_area" name="visit_area" class="form-control" required>
+                   <option value="">Select Visit Area</option>
+               </select><br>
+           </div>
+           <div class="row">
+               <div class="col">
+                   <div class="mb-3">
+                       <label for="host_id" class="form-label">Host ID</label>
+                       <input type="text" class="form-control" name="host_id">
+                   </div>
+               </div>
+               <div class="col">
+                   <div class="mb-3">
+                       <label for="host_name" class="form-label">Host Name</label>
+                       <input type="text" class="form-control" name="host_name">
+                   </div>
+               </div>
+           </div>
+    
+           <div class="mb-3">
+               <label for="visitor_organization" class="form-label">Visitor Organization</label>
+               <input type="text" class="form-control" name="visitor_organization">
+           </div>
+    
+           <div class="mb-3">
+               <label for="visitor_location" class="form-label">Visitor Location</label>
+               <input type="text" class="form-control" name="visitor_location">
+           </div>
+           <div class="mb-3">
+               <label for="organization_location" class="form-label">Organization Location</label>
+               <input type="text" class="form-control" name="organization_location" readonly>
+           </div>
+          <!-- <div class="mb-3">
+               <label for="organization_name" class="form-label">Organization Name</label>
+               <input type="text" class="form-control" name="organization_name">
+           </div>-->
+    
+           <button type="button" class="btn btn-primary" onclick="submitForm()">Submit</button>
+       </form>
+       <div class="row mb-3">
+        <div class="col-md-8">
+            <div class="input-group">
+                <input type="text" id="unifiedSearch" class="form-control" placeholder="Search by name, email, phone, visitor ID or appointment ID...">
+                <button class="btn btn-primary" type="button" onclick="performUnifiedSearch()">
+                    <i class="fas fa-search"></i> Search
+                </button>
+                <button class="btn btn-success ms-2" type="button" onclick="filterByStatus('Inside')">
+                    <i class="fas fa-door-open"></i> Inside
+                </button>
+                <button class="btn btn-warning ms-2" type="button" onclick="filterByStatus('Pending')">
+                    <i class="fas fa-clock"></i> Pending
+                </button>
+            </div>
+            <div class="mt-2">
+                <button class="btn btn-secondary w-100" type="button" onclick="resetSearch()">
+                    <i class="fas fa-redo"></i> Reset Search
+                </button>
+            </div>
+        </div>
+    </div>
+    <table class="table table-bordered mt-3">
+        <thead>
+            <tr>
+                <th>Visitor ID</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Visit Date</th>
+                <th>Visit Purpose</th>
+                <th>Host Name</th>
+                <th>Check-In Time</th>
+                <th>Check-Out Time</th>
+                <th>Status</th>
+                <th>Zone Status</th>
+                <th>Visitor Photo</th>
+                <th>Actions</th>
+                <th>View Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for visitor in visitors %}
+                <tr>
+                    <td>{{ visitor.VisitorId }}</td>
+                    <td>{{ visitor.FirstName }} {{ visitor.LastName }}</td>
+                    <td>{{ visitor.Phone }}</td>
+                    <td id="visit-date-{{ visitor.VisitorId }}" class="visit-date">{{ visitor.VisitDate }}</td>
+                    <td>{{ visitor.VisitPurpose }}</td>
+                    <td>{{ visitor.HostName }}</td>
+                    <td id="checkin-time-{{ visitor.VisitorId }}">{{ visitor.CheckInTime }}
+                        <input type="checkbox" id="checkin-{{ visitor.VisitorId }}" 
+                               onchange="checkInChange(this, '{{ visitor.VisitorId }}')" 
+                               {% if visitor.CheckInTime %} checked disabled {% endif %}
+                               class="checkin-checkbox" disabled>
+                    </td>
+                    <td id="checkout-time-{{ visitor.VisitorId }}">{{ visitor.CheckOutTime }}</td>
+                    <td id="status-{{ visitor.VisitorId }}" class="status-{{ visitor.VisitorStatus.lower() }}">{{ visitor.VisitorStatus }}</td>
+                    <td id="zone-status-{{ visitor.VisitorId }}">{{ visitor.ZoneStatus }}</td>
+                    <td>
+                        <div class="photo-container">
+                            <input type="file" 
+                                   accept="image/*" 
+                                   capture="environment"
+                                   id="camera-{{ visitor.VisitorId }}" 
+                                   class="camera-button"
+                                   onchange="uploadPhoto(event, '{{ visitor.VisitorId }}', '{{ visitor.AppointmentId }}', '{{ visitor.ZoneStatus }}')"
+                                   style="display:none;" 
+                                   disabled>
+                            {% if visitor.VisitorPhoto %}
+                                <img src="{{ url_for('static', filename='visitor_photos/' + visitor.VisitorPhoto) }}" 
+                                     alt="Visitor Photo" class="photo-preview" id="preview-{{ visitor.VisitorId }}">
+                            {% else %}
+                                <div class="no-photo">No Photo</div>
+                            {% endif %}
+                            <button type="button" class="btn-take-photo" id="take-photo-btn-{{ visitor.VisitorId }}" 
+                                    onclick="document.getElementById('camera-{{ visitor.VisitorId }}').click();" 
+                                    style="display:none;" disabled>
+                                Take Photo
+                            </button>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="action-group photo-upload" id="photo-upload-group-{{ visitor.VisitorId }}">
+                                <div class="d-flex flex-column gap-2">
+                                    <input type="file" accept="image/*" capture="environment" 
+                                           id="camera-{{ visitor.VisitorId }}" class="camera-button d-none" 
+                                           onchange="uploadPhoto(event, '{{ visitor.VisitorId }}', '{{ visitor.AppointmentId }}')">
+                                    <button type="button" class="btn btn-primary btn-sm w-100"
+                                            onclick="document.getElementById('camera-{{ visitor.VisitorId }}').click();"
+                                            {% if visitor.VisitorPhoto %} style="display: none;" {% endif %}>
+                                        Upload Photo
+                                    </button>
+                                    <button class="btn btn-warning btn-sm request-red-zone w-100" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#redZoneModal"
+                                            data-visitor-id="{{ visitor.VisitorId }}"
+                                            data-visitor-name="{{ visitor.FirstName }} {{ visitor.LastName }}"
+                                            data-visit-purpose="{{ visitor.VisitPurpose }}"
+                                            title="Request Red Zone Access"
+                                            id="red-zone-btn-{{ visitor.VisitorId }}"
+                                            style="display: none;">
+                                        <i class="fas fa-exclamation-triangle me-1"></i> Request Red Zone
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="action-group checkin-redzone" id="checkin-group-{{ visitor.VisitorId }}"
+                                 {% if not visitor.VisitorPhoto or visitor.CheckInTime %} style="display: none;" {% endif %}>
+                                <div class="d-flex gap-2">
+                                    <input type="checkbox" id="checkin-{{ visitor.VisitorId }}" 
+                                           onchange="checkInChange(this, '{{ visitor.VisitorId }}')" 
+                                           {% if visitor.CheckInTime %} checked disabled {% endif %}
+                                           class="btn-check" autocomplete="off">
+                                    <label class="btn btn-outline-primary btn-sm flex-grow-1" 
+                                           for="checkin-{{ visitor.VisitorId }}">Check In</label>
+                                </div>
+                            </div>
+                            
+                            <div class="action-group checkout" id="checkout-group-{{ visitor.VisitorId }}"
+                                 {% if not visitor.CheckInTime or visitor.CheckOutTime %} style="display: none;" {% endif %}>
+                                <button class="btn btn-danger btn-sm w-100 toggle-checkout" 
+                                        id="checkout-btn-{{ visitor.VisitorId }}"
+                                        data-visitor-id="{{ visitor.VisitorId }}">
+                                    Check Out
+                                </button>
+                            </div>
+                            
+                            <div class="action-group completed" id="completed-group-{{ visitor.VisitorId }}"
+                                 {% if not visitor.CheckOutTime %} style="display: none;" {% endif %}>
+                                <span class="badge bg-success">Visit Completed</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('edit_visitor', visitor_id=visitor.VisitorId) }}" class="btn btn-warning btn-sm">Update</a>
+                            <a href="{{ url_for('view_model_visitor', visitor_id=visitor.VisitorId, appointment_id=visitor.AppointmentId) }}" 
+                               class="btn btn-primary btn-sm">
+                                View Details
+                            </a>
+                            <button class="btn btn-primary btn-sm" 
+                                    id="print-btn-{{ visitor.VisitorId }}" 
+                                    {% if not visitor.CheckInTime %} disabled {% endif %} 
+                                    onclick="printVisitorDetails('{{ visitor.VisitorId }}')">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <!-- Red Zone Modal -->
+    <div class="modal fade" id="redZoneModal" tabindex="-1" aria-labelledby="redZoneModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="redZoneModalLabel">Red Zone Access Request</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="redZoneForm">
+                        <input type="hidden" id="requestId" name="zone_visitor_id">
+                        <div class="mb-3">
+                            <label for="visitArea" class="form-label">Visit Area <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="visitArea" name="zone_visit_area" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Visitor Details</label>
+                            <div class="card">
+                                <div class="card-body">
+                                    <p><strong>Name:</strong> <span id="visitorName"></span></p>
+                                    <p><strong>Visit Purpose:</strong> <span id="visitPurpose"></span></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="submit" class="btn btn-danger">Submit Request</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+        
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+function hasNoVisitStatus(visitorId) {
+    const statusElement = document.getElementById(`status-${visitorId}`);
+    return statusElement && statusElement.textContent.trim().toLowerCase() === 'no visit';
+}
+
+function filterByStatus(status) {
+    const searchParams = new URLSearchParams();
+    searchParams.append('status', status);
+    
+    fetch(`/filter_by_status?${searchParams.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            
+            const tableBody = document.querySelector('table tbody');
+            tableBody.innerHTML = ''; // Clear existing rows
+            
+            if (!data.visitors || data.visitors.length === 0) {
+                alert(`No visitors found with ${status} status`);
+                return;
+            }
+            
+            data.visitors.forEach(visitor => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${visitor.VisitorId}</td>
+                    <td>${visitor.FirstName} ${visitor.LastName}</td>
+                    <td>${visitor.Phone || ''}</td>
+                    <td id="visit-date-${visitor.VisitorId}" class="visit-date">${visitor.VisitDate || ''}</td>
+                    <td>${visitor.VisitPurpose || ''}</td>
+                    <td>${visitor.HostName || ''}</td>
+                    <td id="checkin-time-${visitor.VisitorId}">${visitor.CheckInTime || ''}
+                        <input type="checkbox" id="checkin-${visitor.VisitorId}"
+                               onchange="checkInChange(this, '${visitor.VisitorId}')"
+                               ${visitor.CheckInTime ? 'checked disabled' : ''}
+                               class="checkin-checkbox" ${!visitor.CheckInTime ? '' : 'disabled'}>
+                    </td>
+                    <td id="checkout-time-${visitor.VisitorId}">${visitor.CheckOutTime || ''}</td>
+                    <td id="status-${visitor.VisitorId}" class="status-${(visitor.VisitorStatus || '').toLowerCase()}">${visitor.VisitorStatus || ''}</td>
+                    <td id="zone-status-${visitor.VisitorId}">${visitor.ZoneStatus || ''}</td>
+                    <td></td>
+                    <td>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="action-group photo-upload" id="photo-upload-group-${visitor.VisitorId}">
+                                <div class="d-flex flex-column gap-2">
+                                    <input type="file" accept="image/*" capture="environment" 
+                                           id="camera-${visitor.VisitorId}" class="camera-button d-none" 
+                                           onchange="uploadPhoto(event, '${visitor.VisitorId}', '${visitor.AppointmentId}')">
+                                    <button type="button" class="btn btn-primary btn-sm w-100"
+                                            onclick="document.getElementById('camera-${visitor.VisitorId}').click();"
+                                            ${visitor.VisitorPhoto ? 'style="display: none;"' : ''}>
+                                        Upload Photo
+                                    </button>
+                                    <button class="btn btn-warning btn-sm request-red-zone w-100" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#redZoneModal"
+                                            data-visitor-id="${visitor.VisitorId}"
+                                            data-visitor-name="${visitor.FirstName} ${visitor.LastName}"
+                                            data-visit-purpose="${visitor.VisitPurpose}"
+                                            title="Request Red Zone Access"
+                                            id="red-zone-btn-${visitor.VisitorId}"
+                                            style="display: none;">
+                                        <i class="fas fa-exclamation-triangle me-1"></i> Request Red Zone
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="action-group checkin-redzone" id="checkin-group-${visitor.VisitorId}"
+                                 ${!visitor.VisitorPhoto || visitor.CheckInTime ? 'style="display: none;"' : ''}>
+                                <div class="d-flex gap-2">
+                                    <input type="checkbox" id="checkin-${visitor.VisitorId}" 
+                                           onchange="checkInChange(this, '${visitor.VisitorId}')" 
+                                           ${visitor.CheckInTime ? 'checked disabled' : ''}
+                                           class="btn-check" autocomplete="off">
+                                    <label class="btn btn-outline-primary btn-sm flex-grow-1" 
+                                           for="checkin-${visitor.VisitorId}">Check In</label>
+                                </div>
+                            </div>
+                            
+                            <div class="action-group checkout" id="checkout-group-${visitor.VisitorId}"
+                                 ${!visitor.CheckInTime || visitor.CheckOutTime ? 'style="display: none;"' : ''}>
+                                <button class="btn btn-danger btn-sm w-100 toggle-checkout" 
+                                        id="checkout-btn-${visitor.VisitorId}"
+                                        data-visitor-id="${visitor.VisitorId}">
+                                    Check Out
+                                </button>
+                            </div>
+                            
+                            <div class="action-group completed" id="completed-group-${visitor.VisitorId}"
+                                 ${!visitor.CheckOutTime ? 'style="display: none;"' : ''}>
+                                <span class="badge bg-success">Visit Completed</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <a href="${window.location.origin}/edit_visitor/${visitor.VisitorId}" class="btn btn-warning btn-sm">Update</a>
+                            <a href="${window.location.origin}/view_model_visitor/${visitor.VisitorId}/${visitor.AppointmentId}" 
+                               class="btn btn-primary btn-sm">
+                                View Details
+                            </a>
+                            <button class="btn btn-primary btn-sm" 
+                                    id="print-btn-${visitor.VisitorId}" 
+                                    ${!visitor.CheckInTime ? 'disabled' : ''} 
+                                    onclick="printVisitorDetails('${visitor.VisitorId}')">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while filtering. Please try again.');
+        });
+}
+
+function performUnifiedSearch() {
+    const searchTerm = document.getElementById('unifiedSearch').value.trim();
+    if (!searchTerm) {
+        alert('Please enter a search term');
+        return;
+    }
+    
+    const searchParams = new URLSearchParams();
+    searchParams.append('search_term', searchTerm);
+
+    fetch(`/unified_search?${searchParams.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            const tableBody = document.querySelector('table tbody');
+            tableBody.innerHTML = ''; // Clear existing rows
+
+            if (!data.visitors || data.visitors.length === 0) {
+                alert('No visitors found');
+                return;
+            }
+
+            data.visitors.forEach(visitor => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${visitor.VisitorId}</td>
+                    <td>${visitor.FirstName} ${visitor.LastName}</td>
+                    <td>${visitor.Email}</td>
+                    <td>${visitor.Phone}</td>
+                    <td id="visit-date-${visitor.VisitorId}" class="visit-date">${visitor.VisitDate || ''}</td>
+                    <td>${visitor.VisitPurpose || ''}</td>
+                    <td>${visitor.HostName || ''}</td>
+                    <td id="checkin-time-${visitor.VisitorId}">${visitor.CheckInTime || ''}
+                        <input type="checkbox" id="checkin-${visitor.VisitorId}" 
+                               onchange="checkInChange(this, '${visitor.VisitorId}')" 
+                               ${visitor.CheckInTime ? 'checked disabled' : ''}
+                               class="checkin-checkbox" ${!visitor.CheckInTime ? '' : 'disabled'}>
+                    </td>
+                    <td id="checkout-time-${visitor.VisitorId}">${visitor.CheckOutTime || ''}</td>
+                    <td>${visitor.VisitorOrganization || ''}</td>
+                    <td>${visitor.VisitorLocation || ''}</td>
+                    <td>${visitor.OrganizationName || ''}</td>
+                    <td>${visitor.OrganizationLocation || ''}</td>
+                    <td id="status-${visitor.VisitorId}" class="status-${(visitor.VisitorStatus || '').toLowerCase()}">${visitor.VisitorStatus || ''}</td>
+                    <td id="zone-status-${visitor.VisitorId}">${visitor.ZoneStatus || ''}</td>
+                    <td>
+                        <div class="photo-container">
+                            ${visitor.VisitorPhoto ? 
+                                `<img src="/static/visitor_photos/${visitor.VisitorPhoto}" alt="Visitor Photo" class="photo-preview" id="preview-${visitor.VisitorId}">` :
+                                `<div class="no-photo" id="preview-${visitor.VisitorId}">No Photo</div>`}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="action-group photo-upload" id="photo-upload-group-${visitor.VisitorId}" 
+                                 ${visitor.VisitorPhoto ? 'style="display: none;"' : ''}>
+                                <div class="d-flex flex-column gap-2">
+                                    <input type="file" accept="image/*" capture="environment" 
+                                           id="camera-${visitor.VisitorId}" class="camera-button d-none" 
+                                           onchange="uploadPhoto(event, '${visitor.VisitorId}', '${visitor.AppointmentId}')">
+                                    <button type="button" class="btn btn-primary btn-sm w-100"
+                                            onclick="document.getElementById('camera-${visitor.VisitorId}').click();">
+                                        Upload Photo
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="action-group checkin-redzone" id="checkin-group-${visitor.VisitorId}"
+                                 ${!visitor.VisitorPhoto || visitor.CheckInTime ? 'style="display: none;"' : ''}>
+                                <div class="d-flex gap-2">
+                                    <input type="checkbox" id="checkin-${visitor.VisitorId}" 
+                                           onchange="checkInChange(this, '${visitor.VisitorId}')" 
+                                           ${visitor.CheckInTime ? 'checked disabled' : ''}
+                                           class="btn-check" autocomplete="off">
+                                    <label class="btn btn-outline-primary btn-sm flex-grow-1" 
+                                           for="checkin-${visitor.VisitorId}">Check In</label>
+                                </div>
+                            </div>
+                            <div class="action-group completed" id="completed-group-${visitor.VisitorId}"
+                                 ${!visitor.CheckOutTime ? 'style="display: none;"' : ''}>
+                                <span class="badge bg-success">Visit Completed</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="photo-container">
+                            ${visitor.OutTimePhoto ? 
+                                `<img src="/static/out_time_photos/${visitor.OutTimePhoto}" alt="Out Time Photo" class="photo-preview" id="out-time-preview-${visitor.VisitorId}">` :
+                                `<div class="no-photo" id="out-time-preview-${visitor.VisitorId}">No Photo</div>`}
+                        </div>
+                    </td>
+                    <td>
+                        <a href="/edit_visitor/${visitor.VisitorId}" class="btn btn-warning btn-sm">Update</a>
+                        <button class="btn btn-primary btn-sm" 
+                                id="print-btn-${visitor.VisitorId}" 
+                                ${!visitor.CheckInTime ? 'disabled' : ''} 
+                                onclick="printVisitorDetails('${visitor.VisitorId}')">
+                            <i class="fas fa-print"></i> Print
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(row);
+            });
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while searching. Please try again.');
+        });
+}
+
+function resetSearch() {
+    document.getElementById('unifiedSearch').value = '';
+    window.location.reload();
+}
+
+function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
+    // First check if this is a "No Visit" status
+    if (hasNoVisitStatus(visitorId)) {
+        alert('Photo upload is not allowed for appointments marked as "No Visit"');
+        event.target.value = ''; // Clear the file input
+        return;
+    }
+
+    // Check zone status only if it's pending
+    if (zoneStatus === 'pending') {
+        alert('Photo upload is not allowed until zone status is approved.');
+        event.target.value = '';
+        return;
+    }
+
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('photo', file);
+    formData.append('appointment_id', appointmentId);
+    
+    fetch('/upload_visitor_photo', { 
+        method: 'POST', 
+        body: formData 
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const img = document.getElementById('preview-' + visitorId);
+            const reader = new FileReader();
+            reader.onload = function(e) { 
+                img.src = e.target.result; 
+                img.style.display = 'block'; 
+            };
+            reader.readAsDataURL(file);
+
+            // Automatically check-in the visitor
+            const checkbox = document.getElementById(`checkin-${visitorId}`);
+            if (checkbox && !checkbox.checked) {
+                checkbox.checked = true;
+                toggleCheckIn(visitorId, true);
+            }
+
+            // Enable controls after successful photo upload
+            document.getElementById(`checkin-${visitorId}`).disabled = false;
+            document.getElementById(`red-zone-btn-${visitorId}`).disabled = false;
+
+            // Enable print button and trigger print
+            const printBtn = document.getElementById(`print-btn-${visitorId}`);
+            if (printBtn) {
+                printBtn.disabled = false;
+                printVisitorDetails(visitorId);
+            }
+        } else {
+            alert(data.error || 'Error uploading photo');
+        }
+    })
+    .catch(error => {
+        alert('Error uploading photo: ' + error.message);
+    });
+}
+
+// Initialize the page by adding hasNoVisitStatus check to all existing rows
+document.addEventListener('DOMContentLoaded', function() {
+    const rows = document.querySelectorAll('table tbody tr');
+    
+    rows.forEach(row => {
+        const visitorId = row.querySelector('td:first-child').textContent.trim();
+        const statusCell = row.querySelector(`td[id="status-${visitorId}"]`);
+        
+        if (statusCell && statusCell.textContent.trim().toLowerCase() === 'no visit') {
+            const photoUploadGroup = row.querySelector(`#photo-upload-group-${visitorId}`);
+            if (photoUploadGroup) {
+                photoUploadGroup.style.display = 'none';
+            }
+            
+            const checkinGroup = row.querySelector(`#checkin-group-${visitorId}`);
+            if (checkinGroup) {
+                checkinGroup.style.display = 'none';
+            }
+            
+            const checkoutGroup = row.querySelector(`#checkout-group-${visitorId}`);
+            if (checkoutGroup) {
+                checkoutGroup.style.display = 'none';
+            }
+        }
+    });
+});
+
+// Add event listener for Enter key on search input
+document.getElementById('unifiedSearch').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        performUnifiedSearch();
+    }
+});
+    const companyLocations = {
+    'Company 1': 'Location A',
+    'Company 2': 'Location B',
+    'Company 3': 'Location C',
+    'Company 4': 'Location D'
+};
+
+const visitAreas = {
+    'Company 1': ['Production Area', 'R&D Lab', 'Quality Control', 'Warehouse'],
+    'Company 2': ['Assembly Line', 'Testing Lab', 'Meeting Zone', 'Cafeteria'],
+    'Company 3': ['Development Center', 'Training Room', 'Conference Hall', 'Break Room'],
+    'Company 4': ['Main Office', 'Innovation Hub', 'Discussion Area', 'Pantry']
+};
+
+function updateCompanyDetails() {
+    const companyInput = document.getElementById('company');
+    const visitAreaSelect = document.getElementById('visit_area');
+    const organizationLocationInput = document.querySelector('input[name="organization_location"]');
+    const selectedCompany = companyInput.value;
+
+    // Update visit areas
+    visitAreaSelect.innerHTML = '<option value="">Select Visit Area</option>';
+    if (selectedCompany && visitAreas[selectedCompany]) {
+        visitAreas[selectedCompany].forEach(area => {
+            const option = document.createElement('option');
+            option.value = area;
+            option.textContent = area;
+            visitAreaSelect.appendChild(option);
+        });
+    }
+
+    // Update organization location
+    if (selectedCompany && companyLocations[selectedCompany]) {
+        organizationLocationInput.value = companyLocations[selectedCompany];
+    } else {
+        organizationLocationInput.value = '';
+    }
+}
+
+// Update the HTML to make organization location readonly
+document.addEventListener('DOMContentLoaded', function() {
+    const organizationLocationInput = document.querySelector('input[name="organization_location"]');
+    if (organizationLocationInput) {
+        organizationLocationInput.readOnly = true;
+    }
+    updateCompanyDetails();
+});
+
+function printVisitorDetails(visitorId) {
+    fetch(`/get_visitor_details/${visitorId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const printWindow = window.open('', '_blank');
+                
+                const visitArea = data.visitor.zone_visit_area === 'N/A' ? 'common' : data.visitor.zone_visit_area;
+                const zoneName = data.visitor.zone_status || 'N/A';
+                
+                const printContent = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Visitor Pass</title>
+                        <style>
+                            @page {
+                                size: A4;
+                                margin: 10mm;
+                            }
+                            body {
+                                font-family: Arial, sans-serif;
+                                margin: 0;
+                                padding: 20px;
+                                background-color: #f0f0f0;
+                            }
+                            .visitor-passes {
+                                display: grid;
+                                grid-template-columns: repeat(1, 1fr);
+                                gap: 20px;
+                            }
+                            .visitor-card {
+                                width: 100%;
+                                max-width: 800px;
+                                height: 180px;
+                                background-color: white;
+                                border-radius: 8px;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                                margin-bottom: 20px;
+                                display: flex;
+                                page-break-inside: avoid;
+                            }
+                            .photo-section {
+                                width: 25%;
+                                padding: 15px;
+                                border-right: 1px solid #eee;
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                            }
+                            .visitor-photo {
+                                width: 80px;
+                                height: 80px;
+                                border-radius: 4px;
+                                overflow: hidden;
+                                margin: 0 auto 10px;
+                            }
+                            .visitor-photo img {
+                                width: 100%;
+                                height: 100%;
+                                object-fit: cover;
+                            }
+                            .details-section {
+                                width: 75%;
+                                padding: 15px;
+                            }
+                            .card-header {
+                                background-color: #007bff;
+                                color: white;
+                                padding: 6px 15px;
+                                border-radius: 4px;
+                                margin-bottom: 10px;
+                                font-size: 16px;
+                                font-weight: bold;
+                            }
+                            .detail-row {
+                                display: flex;
+                                margin-bottom: 4px;
+                            }
+                            .detail-label {
+                                font-weight: bold;
+                                width: 120px;
+                                color: #555;
+                                font-size: 11px;
+                            }
+                            .detail-value {
+                                flex: 1;
+                                color: #333;
+                                font-size: 11px;
+                            }
+                            .status-badge {
+                                display: inline-block;
+                                padding: 2px 6px;
+                                border-radius: 3px;
+                                font-size: 10px;
+                                font-weight: bold;
+                                text-transform: capitalize;
+                            }
+                            .status-green { background-color: #e6ffe6; color: #006600; }
+                            .status-red { background-color: #ffe6e6; color: #cc0000; }
+                            .status-yellow { background-color: #fff3cd; color: #856404; }
+                            .zone-info {
+                                margin-top: 5px;
+                                padding: 6px;
+                                background-color: #f8f9fa;
+                                border-radius: 4px;
+                                font-size: 10px;
+                            }
+                            @media print {
+                                body { background-color: white; }
+                                .visitor-card {
+                                    box-shadow: none;
+                                    border: 1px solid #ddd;
+                                    break-inside: avoid;
+                                    margin: 0 auto 20px;
+                                }
+                                .visitor-passes {
+                                    grid-template-columns: 1fr;
+                                }
+                                button { display: none; }
+                                @page {
+                                    margin: 10mm;
+                                }
+                                .visitor-card:nth-child(3n) {
+                                    page-break-after: always;
+                                }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="visitor-passes">
+                            <div class="visitor-card">
+                                <div class="photo-section">
+                                    ${data.visitor.photo ? `
+                                    <div class="visitor-photo">
+                                        <img src="${data.visitor.photo}" alt="Visitor Photo">
+                                    </div>
+                                    ` : ''}
+                                    <div class="zone-info">
+                                        <div><strong>Zone:</strong> ${zoneName}</div>
+                                        <div><strong>Zone Name :</strong> ${data.visitor.zone_id || 'N/A'}</div>
+                                        <div><strong>Area:</strong> ${visitArea}</div>
+                                        <div><strong>Appointment ID:</strong> ${data.visitor.appointment_id || 'N/A'}</div>
+                                    </div>
+                                </div>
+                                <div class="details-section">
+                                    <div class="card-header">Visitor Pass</div>
+                                    <div class="detail-row">
+                                        <div class="detail-label">Name:</div>
+                                        <div class="detail-value">${data.visitor.name || ''}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <div class="detail-label">Visit Date:</div>
+                                        <div class="detail-value">${data.visitor.visit_date || ''}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <div class="detail-label">Host Name:</div>
+                                        <div class="detail-value">${data.visitor.host_name || ''}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <div class="detail-label">Visit Purpose:</div>
+                                        <div class="detail-value">${data.visitor.visit_purpose || ''}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <div class="detail-label">Organization:</div>
+                                        <div class="detail-value">${data.visitor.visit_in_organization || ''}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <div class="detail-label">Check-in Time:</div>
+                                        <div class="detail-value">${data.visitor.check_in_time || ''}</div>
+                                    </div>
+                                    <div class="detail-row">
+                                        <div class="detail-label">Status:</div>
+                                        <div class="detail-value">
+                                            <span class="status-badge ${data.visitor.visitor_status === 'approved' ? 'status-green' : 
+                                                                       data.visitor.visitor_status === 'rejected' ? 'status-red' : 'status-yellow'}">
+                                                ${data.visitor.visitor_status || 'pending'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="text-align: center; padding: 10px;">
+                            <button onclick="window.print()">Print</button>
+                        </div>
+                    </body>
+                    </html>
+                `;
+                
+                printWindow.document.open();
+                printWindow.document.write(printContent);
+                printWindow.document.close();
+            } else {
+                alert('Failed to load visitor details');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while fetching the visitor details.');
+        });
+}
+     function submitForm() {
+    const formData = new FormData(document.getElementById('visitor-form'));
+    
+    $.ajax({
+        url: "{{ url_for('combined_register_visitor') }}",
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            if (response.success) {
+                alert(response.message);
+                document.getElementById('visitor-form').reset();
+                // Reset date to current date after form reset
+                const today = new Date().toISOString().split('T')[0];
+                document.querySelector('input[name="visit_date"]').value = today;
+                location.reload();
+            } else {
+                alert('Error: ' + response.error);
+            }
+        },
+        error: function() {
+            alert('An error occurred while registering the visitor. Please try again.');
+        }
+    });
+}
+
+function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
+    // First check if this is a "No Visit" status
+    if (hasNoVisitStatus(visitorId)) {
+        alert('Photo upload is not allowed for appointments marked as "No Visit"');
+        event.target.value = ''; // Clear the file input
+        return;
+    }
+
+    // Check zone status only if it's pending
+    if (zoneStatus === 'pending') {
+        alert('Photo upload is not allowed until zone status is approved.');
+        event.target.value = '';
+        return;
+    }
+
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('photo', file);
+    formData.append('appointment_id', appointmentId);
+    
+    fetch('/upload_visitor_photo', { 
+        method: 'POST', 
+        body: formData 
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const img = document.getElementById('preview-' + visitorId);
+            const reader = new FileReader();
+            reader.onload = function(e) { 
+                img.src = e.target.result; 
+                img.style.display = 'block'; 
+            };
+            reader.readAsDataURL(file);
+
+            // Automatically check-in the visitor
+            const checkbox = document.getElementById(`checkin-${visitorId}`);
+            if (checkbox && !checkbox.checked) {
+                checkbox.checked = true;
+                toggleCheckIn(visitorId, true);
+            }
+
+            // Enable controls after successful photo upload
+            document.getElementById(`checkin-${visitorId}`).disabled = false;
+            document.getElementById(`red-zone-btn-${visitorId}`).disabled = false;
+
+            // Enable print button and trigger print
+            const printBtn = document.getElementById(`print-btn-${visitorId}`);
+            if (printBtn) {
+                printBtn.disabled = false;
+                printVisitorDetails(visitorId);
+            }
+        } else {
+            alert(data.error || 'Error uploading photo');
+        }
+    })
+    .catch(error => {
+        alert('Error uploading photo: ' + error.message);
+    });
+}
+
+// New function to generate and print visit pass
+function generateVisitPass(visitorId, appointmentId) {
+    fetch('/generate_visit_pass', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+            visitor_id: visitorId, 
+            appointment_id: appointmentId 
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // If the backend generates a pass, open print dialog
+            const printWindow = window.open('/print_visit_pass/' + appointmentId, '_blank');
+            if (printWindow) {
+                printWindow.print();
+            } else {
+                alert('Please enable pop-ups to print the visit pass');
+            }
+        } else {
+            alert(data.error || 'Error generating visit pass');
+        }
+    })
+    .catch(error => {
+        alert('Error generating visit pass: ' + error.message);
+    });
+}
+
+function uploadOutTimePhoto(event, visitorId) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('photo', file);
+    formData.append('visitor_id', visitorId);
+
+    fetch('/upload_out_time_photo', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update photo preview
+            const preview = document.getElementById('out-time-preview-' + visitorId);
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (preview.tagName.toLowerCase() === 'div') {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.alt = "Out Time Photo";
+                    img.className = "photo-preview";
+                    img.id = 'out-time-preview-' + visitorId;
+                    preview.parentNode.replaceChild(img, preview);
+                } else {
+                    preview.src = e.target.result;
+                }
+            };
+            reader.readAsDataURL(file);
+
+            // Enable checkout button
+            document.getElementById('checkout-btn-' + visitorId).disabled = false;
+        } else {
+            alert(data.error || 'Error uploading out time photo');
+        }
+    })
+    .catch(error => {
+        alert('Error uploading out time photo: ' + error.message);
+    });
+}
+document.getElementById('company').addEventListener('change', updateCompanyDetails);
+document.addEventListener('DOMContentLoaded', function() {
+    // Set current date for visit_date input
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.querySelector('input[name="visit_date"]');
+    if (dateInput) {
+        dateInput.value = today;
+        dateInput.min = today;
+    }
+    const visitorForm = document.getElementById('visitor-form');
+    const emailSearchForm = document.getElementById('email-search-form');
+    const updateVisitorBtn = document.getElementById('updateVisitor');
+    const tbody = document.querySelector('tbody');
+    const allowCheckoutWithoutPhotoToggle = document.getElementById('allow-checkout-without-photo');
+    const redZoneModal = document.getElementById('redZoneModal');
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    const debouncedUpdateControls = debounce(updateControlsBasedOnDates, 100);
+
+    // Add click handlers for checkout buttons
+    document.querySelectorAll('.toggle-checkout').forEach(button => {
+        button.addEventListener('click', function() {
+            const visitorId = this.getAttribute('data-visitor-id');
+            toggleCheckout(visitorId);
+        });
+    });
+
+    // Red Zone Modal Event Listener
+    if (redZoneModal) {
+        redZoneModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const visitorId = button.getAttribute('data-visitor-id');
+            const visitorName = button.getAttribute('data-visitor-name');
+            const visitPurpose = button.getAttribute('data-visit-purpose');
+
+            document.getElementById('requestId').value = visitorId;
+            document.getElementById('visitorName').textContent = visitorName;
+            document.getElementById('visitPurpose').textContent = visitPurpose;
+        });
+    }
+
+    // Red Zone Form Submit Handler
+    const redZoneForm = document.getElementById('redZoneForm');
+    if (redZoneForm) {
+        redZoneForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const requestId = document.getElementById('requestId').value;
+            const visitArea = document.getElementById('visitArea').value;
+            const visitPurpose = document.getElementById('visitPurpose').textContent;
+
+            if (!requestId.trim()) {
+                alert('Visitor ID is required!');
+                return;
+            }
+            if (!visitArea.trim()) {
+                alert('Visit Area is required!');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('zone_visitor_id', requestId);
+            formData.append('zone_visit_area', visitArea);
+            formData.append('zone_visit_purpose', visitPurpose);
+
+            fetch('/request-red-zone', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.error || 'Failed to submit request');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    alert('Red Zone request submitted successfully!');
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert(error.message || 'An error occurred while submitting the request');
+            });
+        });
+    }
+
+    // Existing form event listeners
+    if (visitorForm) {
+        visitorForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitForm();
+        });
+    }
+
+    if (emailSearchForm) {
+        emailSearchForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const email = document.getElementById('search-email').value;
+            searchVisitorByEmail(email);
+        });
+    }
+
+    if (updateVisitorBtn) {
+        updateVisitorBtn.addEventListener('click', function() {
+            const email = document.getElementById('search-email').value;
+            window.location.href = `/edit_visitor?email=${encodeURIComponent(email)}`;
+        });
+    }
+
+    if (tbody) {
+        const observer = new MutationObserver(debouncedUpdateControls);
+        observer.observe(tbody, { attributes: true, childList: true, subtree: true });
+
+        tbody.addEventListener('click', function(e) {
+            if (e.target.classList.contains('toggle-checkout')) {
+                const visitorId = e.target.getAttribute('data-visitor-id');
+                toggleCheckout(visitorId);
+            }
+        });
+
+        tbody.addEventListener('change', function(e) {
+            if (e.target.id.startsWith('checkin-')) {
+                const visitorId = e.target.id.split('-')[1];
+                checkInChange(e.target, visitorId);
+            }
+        });
+    }
+
+    if (allowCheckoutWithoutPhotoToggle) {
+        allowCheckoutWithoutPhotoToggle.checked = localStorage.getItem('allowCheckoutWithoutPhoto') === 'true';
+        allowCheckoutWithoutPhotoToggle.addEventListener('change', function() {
+            localStorage.setItem('allowCheckoutWithoutPhoto', this.checked);
+            debouncedUpdateControls();
+        });
+    }
+
+        debouncedUpdateControls();
+        disablePhotoUploadForNoVisit();
+        function submitForm() {
+            const formData = new FormData(visitorForm);
+
+            fetch("{{ url_for('combined_register_visitor') }}", {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    visitorForm.reset();
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(() => {
+                alert('An error occurred while registering the visitor. Please try again.');
+            });
+        }
+
+        
+
+        function hasNoVisitStatus(visitorId) {
+    const statusElement = document.getElementById(`status-${visitorId}`);
+    return statusElement && statusElement.textContent.trim().toLowerCase() === 'no visit';
+}
+
+function handleNewAppointmentCreated() {
+    setTimeout(disablePhotoUploadForNoVisit, 100); // Small delay to ensure DOM is updated
+}
+
+// Updated upload photo function
+function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
+    // First check if this is a "No Visit" status
+    if (hasNoVisitStatus(visitorId)) {
+        alert('Photo upload is not allowed for appointments marked as "No Visit"');
+        event.target.value = ''; // Clear the file input
+        return;
+    }
+
+    // Check zone status only if it's pending
+    if (zoneStatus === 'pending') {
+        alert('Photo upload is not allowed until zone status is approved.');
+        event.target.value = '';
+        return;
+    }
+
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('photo', file);
+    formData.append('appointment_id', appointmentId);
+    
+    fetch('/upload_visitor_photo', { 
+        method: 'POST', 
+        body: formData 
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const img = document.getElementById('preview-' + visitorId);
+            const reader = new FileReader();
+            reader.onload = function(e) { 
+                img.src = e.target.result; 
+                img.style.display = 'block'; 
+            };
+            reader.readAsDataURL(file);
+
+            // Automatically check-in the visitor
+            const checkbox = document.getElementById(`checkin-${visitorId}`);
+            if (checkbox && !checkbox.checked) {
+                checkbox.checked = true;
+                toggleCheckIn(visitorId, true);
+            }
+
+            // Enable controls after successful photo upload
+            document.getElementById(`checkin-${visitorId}`).disabled = false;
+            document.getElementById(`red-zone-btn-${visitorId}`).disabled = false;
+
+            // Enable print button and trigger print
+            const printBtn = document.getElementById(`print-btn-${visitorId}`);
+            if (printBtn) {
+                printBtn.disabled = false;
+                printVisitorDetails(visitorId);
+            }
+        } else {
+            alert(data.error || 'Error uploading photo');
+        }
+    })
+    .catch(error => {
+        alert('Error uploading photo: ' + error.message);
+    });
+}
+        function uploadOutTimePhoto(event, visitorId) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('photo', file);
+            formData.append('visitor_id', visitorId);
+
+            fetch('/upload_out_time_photo', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updatePhotoPreview(file, 'out-time-preview-' + visitorId);
+                    document.getElementById(`checkout-btn-${visitorId}`).disabled = false;
+                } else {
+                    alert(data.error || 'Error uploading out time photo');
+                }
+            })
+        }
+
+        function updatePhotoPreview(file, previewId) {
+            const img = document.getElementById(previewId);
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (img.tagName.toLowerCase() === 'div') {
+                    const newImg = document.createElement('img');
+                    newImg.src = e.target.result;
+                    newImg.alt = "Photo Preview";
+                    newImg.className = "photo-preview";
+                    newImg.id = previewId;
+                    img.parentNode.replaceChild(newImg, img);
+                } else {
+                    img.src = e.target.result;
+                }
+                img.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+
+// Updated function to handle control updates
+function updateControlsBasedOnDates() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    document.querySelectorAll('.visit-date').forEach(dateElement => {
+        const visitorId = dateElement.id.split('-')[2];
+        if (hasNoVisitStatus(visitorId)) {
+            return;
+        }
+
+        const visitDate = new Date(dateElement.textContent);
+        visitDate.setHours(0, 0, 0, 0);
+
+        const controls = {
+            status: document.getElementById(`status-${visitorId}`),
+            checkin: document.getElementById(`checkin-${visitorId}`),
+            checkout: document.getElementById(`checkout-btn-${visitorId}`),
+            takePhoto: document.getElementById(`take-photo-btn-${visitorId}`),
+            takeOutPhoto: document.getElementById(`take-out-photo-btn-${visitorId}`),
+            camera: document.getElementById(`camera-${visitorId}`),
+            outTimeCamera: document.getElementById(`out-time-camera-${visitorId}`),
+            redZoneBtn: document.getElementById(`red-zone-btn-${visitorId}`)
+        };
+
+        const zoneStatusElement = document.getElementById(`zone-status-${visitorId}`);
+        const zoneStatus = zoneStatusElement ? zoneStatusElement.textContent.trim().toLowerCase() : '';
+
+        // Check if the visitor has "No Visit" status
+        const isNoVisit = hasNoVisitStatus(visitorId);
+
+        // Disable controls only for "No Visit" status
+        if (isNoVisit) {
+            Object.values(controls).forEach(control => {
+                if (control) control.disabled = true;
+            });
+            return;
+        }
+
+        // Enable controls for valid appointments
+        if (visitDate.getTime() === today.getTime()) {
+            const currentStatus = controls.status.textContent;
+
+            if (currentStatus === 'Inside') {
+                controls.checkin.disabled = true;
+                controls.takeOutPhoto.disabled = false;
+                controls.outTimeCamera.disabled = false;
+                
+                const outTimePhotoExists = document.getElementById(`out-time-preview-${visitorId}`)?.src || '';
+                const allowCheckoutWithoutPhoto = localStorage.getItem('allowCheckoutWithoutPhoto') === 'true';
+                controls.checkout.disabled = !(outTimePhotoExists || allowCheckoutWithoutPhoto);
+                
+            } else if (currentStatus !== 'Is Gone') {
+                controls.takePhoto.disabled = false;
+                controls.camera.disabled = false;
+
+                const visitorPhotoUploaded = document.getElementById(`preview-${visitorId}`)?.src || '';
+                if (visitorPhotoUploaded) {
+                    controls.checkin.disabled = zoneStatus === 'pending';
+                    controls.redZoneBtn.disabled = zoneStatus === 'pending';
+                }
+            }
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Disable all check-in related controls for "No Visit" appointments
+    document.querySelectorAll('[id^="status-"]').forEach(statusElement => {
+        const visitorId = statusElement.id.split('-')[2];
+        if (hasNoVisitStatus(visitorId)) {
+            const checkinCheckbox = document.getElementById(`checkin-${visitorId}`);
+            const checkinGroup = document.getElementById(`checkin-group-${visitorId}`);
+            const checkoutGroup = document.getElementById(`checkout-group-${visitorId}`);
+            
+            if (checkinCheckbox) checkinCheckbox.disabled = true;
+            if (checkinGroup) checkinGroup.style.display = 'none';
+            if (checkoutGroup) checkoutGroup.style.display = 'none';
+        }
+    });
+});
+
+// Add event listener for the document load
+document.addEventListener('DOMContentLoaded', function() {
+    updateControlsBasedOnDates();
+    
+    // Set up observers for status changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'characterData' || mutation.type === 'childList') {
+                updateControlsBasedOnDates();
+            }
+        });
+    });
+
+    // Observe all status elements
+    document.querySelectorAll('[id^="status-"]').forEach(element => {
+        observer.observe(element, { 
+            characterData: true, 
+            childList: true, 
+            subtree: true 
+        });
+    });
+});
+
+function hasNoVisitStatus(visitorId) {
+    const statusElement = document.getElementById(`status-${visitorId}`);
+    return statusElement && statusElement.textContent.trim().toLowerCase() === 'no visit';
+}
+
+function checkInChange(checkbox, visitorId) {
+    // First check if this is a "No Visit" status
+    if (hasNoVisitStatus(visitorId)) {
+        alert('Check-in is not allowed for appointments marked as "No Visit"');
+        checkbox.checked = false;
+        return;
+    }
+
+    const isChecked = checkbox.checked;
+    const visitDateElement = document.getElementById(`visit-date-${visitorId}`);
+    const visitDate = new Date(visitDateElement.textContent);
+    const today = new Date();
+    const statusCell = document.getElementById(`status-${visitorId}`);
+    const zoneStatusElement = document.getElementById(`zone-status-${visitorId}`);
+    const zoneStatus = zoneStatusElement ? zoneStatusElement.textContent.trim().toLowerCase() : '';
+
+    if (!isChecked && statusCell.textContent === 'Inside') {
+        checkbox.checked = true;
+        alert('Check-in cannot be modified once completed. Please use checkout instead.');
+        return;
+    }
+
+    if (visitDate.toDateString() !== today.toDateString()) {
+        alert('Check-in is only allowed on the visit date.');
+        checkbox.checked = false;
+        return;
+    }
+
+    if (zoneStatus === 'pending') {
+        alert('Check-in is not allowed while zone status is pending.');
+        checkbox.checked = false;
+        return;
+    }
+
+    toggleCheckIn(visitorId, isChecked);
+}
+function toggleCheckIn(visitorId, isChecked) {
+    // Check again for "No Visit" status before making the API call
+    if (hasNoVisitStatus(visitorId)) {
+        return;
+    }
+
+    fetch('/toggle_checkin/' + visitorId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ check_in: 'checked' })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update check-in time only if not "No Visit"
+            if (!hasNoVisitStatus(visitorId)) {
+                const checkinTimeCell = document.getElementById('checkin-time-' + visitorId);
+                const currentTime = new Date().toLocaleString();
+                checkinTimeCell.textContent = currentTime;
+                
+                // Update status
+                const statusCell = document.getElementById('status-' + visitorId);
+                statusCell.textContent = 'Inside';
+                
+                // Hide check-in group and show checkout group
+                document.getElementById('checkin-group-' + visitorId).style.display = 'none';
+                document.getElementById('checkout-group-' + visitorId).style.display = 'block';
+                
+                // Disable check-in checkbox
+                const checkbox = document.getElementById(`checkin-${visitorId}`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                    checkbox.disabled = true;
+                }
+            }
+        } else {
+            alert(data.error || 'Error checking in');
+            // Uncheck the checkbox if check-in fails
+            const checkbox = document.getElementById(`checkin-${visitorId}`);
+            if (checkbox) checkbox.checked = false;
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error.message);
+        // Uncheck the checkbox if an error occurs
+        const checkbox = document.getElementById(`checkin-${visitorId}`);
+        if (checkbox) checkbox.checked = false;
+    });
+}
+
+function updateCheckInStatus(visitorId, isChecked) {
+    // Don't update check-in status for "No Visit" appointments
+    if (hasNoVisitStatus(visitorId)) {
+        return;
+    }
+    const checkinTimeCell = document.getElementById(`checkin-time-${visitorId}`);
+    const statusCell = document.getElementById(`status-${visitorId}`);
+    const checkbox = document.getElementById(`checkin-${visitorId}`);
+    const redZoneBtn = document.getElementById(`red-zone-btn-${visitorId}`);
+    const zoneStatusElement = document.getElementById(`zone-status-${visitorId}`);
+    const zoneStatus = zoneStatusElement ? zoneStatusElement.textContent.trim().toLowerCase() : '';
+    
+    if (isChecked) {
+        checkinTimeCell.innerText = new Date().toLocaleString();
+        statusCell.innerText = 'Inside';
+        checkbox.disabled = true;
+        redZoneBtn.disabled = zoneStatus === 'pending';
+    } else {
+        checkinTimeCell.innerText = '';
+        statusCell.innerText = 'Pending';
+        redZoneBtn.disabled = true;
+    }
+}
+ 
+    function toggleCheckout(visitorId) {
+    fetch('/toggle_checkout/' + visitorId, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update checkout time
+            const checkoutTimeCell = document.getElementById('checkout-time-' + visitorId);
+            checkoutTimeCell.textContent = new Date().toLocaleString();
+            
+            // Update status
+            const statusCell = document.getElementById('status-' + visitorId);
+            statusCell.textContent = 'Is Gone';
+            
+            // Hide checkout group and show completed badge
+            document.getElementById('checkout-group-' + visitorId).style.display = 'none';
+            document.getElementById('completed-group-' + visitorId).style.display = 'block';
+        } else {
+            alert(data.error || 'Error checking out');
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error.message);
+    });
+}
+
+function updateCheckoutStatus(visitorId) {
+    const checkoutTimeCell = document.getElementById(`checkout-time-${visitorId}`);
+    const statusCell = document.getElementById(`status-${visitorId}`);
+    checkoutTimeCell.innerText = new Date().toLocaleString();
+    statusCell.innerText = 'Is Gone';
+    statusCell.className = 'status-gone';
+
+    // Store the checkout status in a data attribute to persist through refreshes
+    statusCell.dataset.checkedOut = 'true';
+}
+
+// Add this function to the DOMContentLoaded event listener
+document.addEventListener('DOMContentLoaded', function() {
+    // ... (existing code)
+
+    // Maintain checkout status after refresh
+    document.querySelectorAll('[id^="checkout-time-"]').forEach(cell => {
+        if (cell.textContent) {
+            const visitorId = cell.id.split('-')[2];
+            const statusCell = document.getElementById(`status-${visitorId}`);
+            if (statusCell) {
+                statusCell.textContent = 'Is Gone';
+                statusCell.className = 'status-gone';
+            }
+        }
+    });
+});
+
+    function searchVisitorByEmail(email) {
+    fetch(`/search_visitor?email=${encodeURIComponent(email)}`)
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    throw new Error(text); // Throw the error with the response text
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                displayVisitorInfo(data.visitor);
+            } else {
+                alert(data.error || 'Visitor not found');
+                document.getElementById('searchResults').style.display = 'none';
+            }
+        })
+        .catch(error => {
+            alert('Error searching for visitor: ' + error.message);
+        });
+}
+    function displayVisitorInfo(visitor) {
+        const infoHtml = `
+            <p><strong>Name:</strong> ${visitor.FirstName} ${visitor.LastName}</p>
+            <p><strong>Email:</strong> ${visitor.Email}</p>
+            <p><strong>Phone:</strong> ${visitor.Phone}</p>
+            <p><strong>Visit Date:</strong> ${visitor.VisitDate}</p>
+            <p><strong>Visit Purpose:</strong> ${visitor.VisitPurpose}</p>
+            <p><strong>Host Name:</strong> ${visitor.HostName}</p>
+            <p><strong>Status:</strong> ${visitor.VisitorStatus}</p>
+        `;
+        document.getElementById('visitorInfo').innerHTML = infoHtml;
+        document.getElementById('searchResults').style.display = 'block';
+    }
+
+    function handleVisitDateChange(visitorId, newDate) {
+    const visitDateElement = document.getElementById(`visit-date-${visitorId}`);
+    visitDateElement.textContent = newDate;
+
+    // Update status to 'Pending' when the visit date changes
+    const statusElement = document.getElementById(`status-${visitorId}`);
+    statusElement.textContent = 'Pending';
+
+    debouncedUpdateControls();
+}
+
+    // Expose necessary functions to global scope
+    window.uploadPhoto = uploadPhoto;
+    window.uploadOutTimePhoto = uploadOutTimePhoto;
+    window.handleVisitDateChange = handleVisitDateChange;
+});
+function handleReschedule(visitorId) {
+    // Open a modal or navigate to rescheduling page
+    const currentDate = document.getElementById(`visit-date-${visitorId}`).textContent;
+    
+    // You can implement your preferred date picker solution here
+    const newDate = prompt("Please enter new date (YYYY-MM-DD):", currentDate);
+    
+    if (newDate) {
+        fetch('/reschedule_visit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                visitor_id: visitorId,
+                new_date: newDate
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the visit date display
+                document.getElementById(`visit-date-${visitorId}`).textContent = newDate;
+                // Update status if needed
+                document.getElementById(`status-${visitorId}`).textContent = 'Pending';
+                alert('Visit rescheduled successfully!');
+            } else {
+                alert(data.error || 'Failed to reschedule visit');
+            }
+        })
+        .catch(error => {
+            alert('Error rescheduling visit: ' + error.message);
+        });
+    }
+}
+function disablePhotoUploadForNoVisit() {
+    // Find all visitor rows
+    const visitorRows = document.querySelectorAll('tr[data-visitor-id]');
+    
+    visitorRows.forEach(row => {
+        const visitorId = row.getAttribute('data-visitor-id');
+        const statusElement = document.getElementById(`status-${visitorId}`);
+        const photoUploadInput = document.getElementById(`photo-upload-${visitorId}`);
+        
+        // If status is "No Visit", disable the photo upload input
+        if (statusElement && statusElement.textContent.trim().toLowerCase() === 'no visit' && photoUploadInput) {
+            photoUploadInput.disabled = true;
+            // Optionally add a visual indication that it's disabled
+            photoUploadInput.parentElement.classList.add('disabled-upload');
+        }
+    });
+}
+    </script>
+    {% endblock %}
+</body>
+</html>

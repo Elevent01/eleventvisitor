@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Users</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+    <style>
+:root {
+    --primary-color: #4CAF50;
+    --primary-light: #E8F5E9;
+    --primary-dark: #1B5E20;
+    --accent-color: #8BC34A;
+    --text-dark: #263238;
+    --text-light: #546E7A;
+    --border-color: #C8E6C9;
+    --background-light: #F9FFF9;
+    --box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+    
+    --success: #28a745;
+    --warning: #ffd700;
+    --danger: #ff4444;
+    --info: #17a2b8;
+    --secondary: #6c757d;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    --border-radius: 0.25rem;
+    --transition: all 0.3s ease;
+}
+
+body {
+    background-color: #F5F7F5;
+    color: var(--text-dark);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 12px;
+    margin: 0;
+    min-height: 100vh;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0;
+    background-color: transparent;
+    display: block !important;
+    visibility: visible !important;
+    position: relative;
+}
+
+.profile-header {
+    background-color: white;
+    border-radius: 8px 8px 0 0;
+    padding: 5px;
+    margin: 0; 
+    box-shadow: var(--box-shadow);
+    border-top: 4px solid #1B5E20;
+    border-left: 2px solid rgba(59, 100, 112, 0.255);
+    border-right: 2px solid rgba(59, 100, 112, 0.255);
+    border-bottom: none;
+    position: relative; 
+    z-index: 2; 
+}
+
+.profile-header::after {  
+    content: '';  
+    display: block;  
+    height: 2px; 
+    background-color: rgba(76, 175, 80, 0.2); 
+    margin: 0 15px; 
+    position: absolute;  
+    left: 0; 
+    bottom: -2px; 
+    right: 0; 
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.page-title {
+    color: var(--primary-dark);
+    margin: 0;
+    padding: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+/* Search section */
+.search-container {
+    display: flex;
+    gap: 5px;
+    margin: 5px auto;
+    width: 100%;
+    padding: 5px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+    border: 2px solid rgba(59, 100, 112, 0.255);
+    border-top: 4px solid #1B5E20;
+}
+
+.search-input-group {
+    flex: 1;
+    position: relative;
+}
+
+.search-input-group input {
+    border: 2px solid var(--accent-color);
+    border-radius: 50px;
+    outline: none;
+    padding: 5px 30px 5px 10px;
+    width: 100%;
+    font-size: 0.8rem;
+}
+
+.search-button,
+.show-all-button {
+    align-items: center;
+    border-radius: 50px;
+    cursor: pointer;
+    display: flex;
+    height: 30px;
+    justify-content: center;
+    transition: var(--transition);
+}
+
+.search-button {
+    background: var(--accent-color);
+    border: none;
+    padding: 3px 10px;
+    position: absolute;
+    right: 3px;
+    top: 3px;
+    color: white;
+}
+
+.show-all-button {
+    background: white;
+    border: 2px solid var(--accent-color);
+    padding: 3px 10px;
+    color: var(--text-dark);
+    font-weight: 500;
+    font-size: 0.75rem;
+}
+
+.search-button:hover,
+.show-all-button:hover {
+    background: var(--primary-dark);
+    color: white;
+}
+
+/* User section styling */
+.user-section {
+    margin-bottom: 2px;
+}
+
+.user-section .card {
+    border: none;
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+    margin-bottom: 0;
+    transition: var(--transition);
+    border-left: 2px solid rgba(59, 100, 112, 0.255);
+    border-right: 2px solid rgba(59, 100, 112, 0.255);
+    border-top: 2px solid rgba(59, 100, 112, 0.255);
+}
+
+.user-section .card-header {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    padding: 5px;
+    background: white !important;
+    border-radius: 8px !important;
+    border-bottom: none;
+}
+
+.user-section .card-header h3 {
+    font-size: 0.9rem;
+    margin: 0;
+    color: var(--primary-dark);
+    font-weight: 600;
+}
+
+.user-section .card:hover {
+    box-shadow: 0 5px 15px rgba(76, 175, 80, 0.2);
+}
+
+/* User details section */
+#details-container {
+    border-left: 2px solid rgba(59, 100, 112, 0.255);
+    border-right: 2px solid rgba(59, 100, 112, 0.255);
+    border-bottom: 2px solid rgba(59, 100, 112, 0.255);
+    border-radius: 0 0 8px 8px;
+    padding: 5px;
+    background-color: white;
+}
+
+/* Card styling within details */
+#details-container .card {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 5px;
+}
+
+#details-container .card-header {
+    padding: 5px;
+    font-weight: 600;
+}
+
+/* Color themes for card headers */
+.bg-primary {
+    background-color: var(--primary-color) !important;
+}
+
+.bg-success {
+    background-color: var(--accent-color) !important;
+}
+
+.bg-info {
+    background-color: var(--info) !important;
+}
+
+.bg-warning {
+    background-color: var(--warning) !important;
+    color: var(--text-dark) !important;
+}
+
+.bg-secondary {
+    background-color: var(--secondary) !important;
+}
+
+/* Table styling */
+.table {
+    margin-bottom: 0;
+    background: transparent;
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.table-bordered {
+    border: 1px solid var(--border-color);
+}
+
+.table-bordered th,
+.table-bordered td {
+    border: 1px solid var(--border-color);
+    padding: 3px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.table th {
+    background-color: var(--primary-light);
+    color: var(--primary-dark);
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+/* Toggle switch */
+.toggle-switch {
+    display: inline-block;
+    height: 20px;
+    position: relative;
+    width: 40px;
+}
+
+.toggle-switch input {
+    height: 0;
+    opacity: 0;
+    width: 0;
+}
+
+.toggle-slider {
+    background: var(--danger);
+    border-radius: 34px;
+    bottom: 0;
+    cursor: pointer;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    transition: var(--transition);
+}
+
+.toggle-slider:before {
+    background: #fff;
+    border-radius: 50%;
+    bottom: 3px;
+    content: "";
+    height: 14px;
+    left: 3px;
+    position: absolute;
+    transition: var(--transition);
+    width: 14px;
+}
+
+input:checked + .toggle-slider {
+    background: var(--success);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+/* Modal styling */
+.modal-overlay {
+    background: rgba(0,0,0,0.5);
+    display: none;
+    height: 100%;
+    left: 0;
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+}
+
+.modal-container {
+    background: #fff;
+    border-radius: 8px;
+    left: 50%;
+    max-width: 500px;
+    padding: 10px;
+    position: fixed;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+    margin-bottom: 5px;
+}
+
+.modal-title {
+    color: var(--primary-dark);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.close-button {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: var(--text-light);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 5px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 5px;
+    margin-top: 5px;
+}
+
+.btn-secondary {
+    background-color: var(--secondary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-dark);
+}
+
+.btn-secondary:hover {
+    background-color: var(--dark);
+}
+
+/* Form controls */
+.form-control {
+    width: 100%;
+    padding: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+.select-all-container {
+    margin-bottom: 5px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container { 
+        padding: 5px; 
+    }
+    
+    .table-bordered td {
+        display: flex;
+        justify-content: space-between;
+        padding: 5px;
+        position: relative;
+    }
+    
+    .table-bordered td::before {
+        content: attr(data-label);
+        font-weight: bold;
+        left: 5px;
+        position: absolute;
+        top: 5px;
+    }
+    
+    .user-section .card-header h3 {
+        font-size: 0.8rem;
+    }
+}
+    </style>
+</head>
+<body>
+    {% extends "dashboard.html" %}
+
+    {% block content %}
+        
+        <div class="search-container">
+            <div class="search-input-group">
+                <input type="text" id="userSearch" placeholder="Search by User ID...">
+                <button class="search-button" onclick="searchUser()">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            <button class="show-all-button" onclick="showAllUsers()">
+                <i class="fas fa-users"></i> Show All
+            </button>
+        </div>
+    
+        <!-- Company Selection Modal -->
+        <div id="companyAccessModal" class="modal-overlay">
+            <div class="modal-container">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Company Access Settings</h5>
+                        <button type="button" class="close-button" onclick="closeModal()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Select companies for this user:</p>
+                        <div class="select-all-container">
+                            <label>
+                                <input type="checkbox" id="selectAllCompanies" onchange="toggleAllCompanies()">
+                                All Companies
+                            </label>
+                        </div>
+                        <form id="companyAccessForm">
+                            <div class="form-group">
+                                <select multiple class="form-control" id="companySelect">
+                                    {% for company in companies %}
+                                    <option value="{{ company }}">{{ company }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="saveCompanyAccess()">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    <!-- Combined Register Company Access Modal -->
+    <div id="combinedRegisterModal" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Company Access Settings for Combined Register</h5>
+                    <button type="button" class="close-button" onclick="closeCombinedModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Select companies for combined register access:</p>
+                    <div class="select-all-container">
+                        <label>
+                            <input type="checkbox" id="selectAllCombinedCompanies" onchange="toggleAllCombinedCompanies()">
+                            All Companies
+                        </label>
+                    </div>
+                    <form id="combinedCompanyAccessForm">
+                        <div class="form-group">
+                            <select multiple class="form-control" id="combinedCompanySelect">
+                                {% for company in companies %}
+                                <option value="{{ company }}">{{ company }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeCombinedModal()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveCombinedCompanyAccess()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% for user in users %}
+    <div class="user-section mb-4 user-row" data-userid="{{ user.UserId }}">
+        <div class="card" onclick="toggleUserDetails('{{ user.UserId }}')">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center" style="cursor: pointer;">
+                <h3 class="mb-0">User ID: {{ user.UserId }} | Company: {{ user.Company }}</h3>
+                <i class="fas fa-chevron-down" id="chevron-{{ user.UserId }}"></i>
+            </div>
+        </div>
+        
+        <div id="details-{{ user.UserId }}" style="display: none;">
+            <!-- Master Table -->
+            <div class="card mb-3">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0">Organization Setup & Management Master <br>(For Admin)</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Add Company</th>
+                                <th>Add Department</th>
+                                <th>Add Designation</th>
+                                <th>Add Role</th>
+                                <th>Add Zone</th>
+                                <th>Add Zone Area</th>
+                            </tr>
+                        </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   {% if user.CanAddCompany %}checked{% endif %}
+                                                   onchange="updateSetting('{{ user.UserId }}', 'canAddCompany', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   {% if user.CanAddDepartment %}checked{% endif %}
+                                                   onchange="updateSetting('{{ user.UserId }}', 'canAddDepartment', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   {% if user.CanAddDesignation %}checked{% endif %}
+                                                   onchange="updateSetting('{{ user.UserId }}', 'canAddDesignation', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   {% if user.CanAddRole %}checked{% endif %}
+                                                   onchange="updateSetting('{{ user.UserId }}', 'canAddRole', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   {% if user.CanAddZone %}checked{% endif %}
+                                                   onchange="updateSetting('{{ user.UserId }}', 'canAddZone', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   {% if user.CanAddZoneArea %}checked{% endif %}
+                                                   onchange="updateSetting('{{ user.UserId }}', 'canAddZoneArea', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+    
+                <!-- Access Master Table -->
+                <div class="card mb-3">
+                    <div class="card-header bg-warning">
+                        <h5 class="mb-0">Role & User Mnagement Access (For Admin)</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Prevent Forget Password of this user<br>(Turn It Off)</th>
+                                    <th>Individual Users Access Page (This Page)</th>
+                                    <th>Visitor Checkout Settings Page</th>
+                                    <th>Role Access Page </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   {% if user.ShowForgetPassword %}checked{% endif %}
+                                                   onchange="updateSetting('{{ user.UserId }}', 'showForgetPassword', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   {% if user.CanViewUsers %}checked{% endif %}
+                                                   onchange="updateSetting('{{ user.UserId }}', 'canViewUsers', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   {% if user.CanAccessVisitorSettings %}checked{% endif %}
+                                                   onchange="updateSetting('{{ user.UserId }}', 'canAccessVisitorSettings', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   {% if user.CanAccessRoleAccess %}checked{% endif %}
+                                                   onchange="updateSetting('{{ user.UserId }}', 'canAccessRoleAccess', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+    
+                <!-- Employee Master Table -->
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">Employee Master</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Register Employee Page For All Companies</th>
+                                    <th>View All Employees Page</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   {% if user.CanRegisterEmployee %}checked{% endif %}
+                                                   onchange="updateSetting('{{ user.UserId }}', 'canRegisterEmployee', this.checked)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" 
+                                                   class="employee-access-toggle"
+                                                   data-userid="{{ user.UserId }}"
+                                                   {% if user.CanViewEmployees %}checked{% endif %}
+                                                   onchange="handleEmployeeAccess('{{ user.UserId }}', this)">
+                                            <span class="toggle-slider"></span>
+                                        </label>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+    
+            <!-- Operation Visitor Table -->
+            <div class="card mb-3">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0">Operation Visitor</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Register visitor Page For User's Own Company</th>
+                                <th>Register Visitor Page For Multiple Companies</th>
+                                <th>Check In-Out Visitor Page For Multiple Companies</th>
+                                <th>View All Visitors</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" 
+                                               {% if user.CanQuickRegister %}checked{% endif %}
+                                               onchange="updateSetting('{{ user.UserId }}', 'canQuickRegister', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </td>
+                                <td>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" 
+                                               {% if user.CanRegisterVisitor %}checked{% endif %}
+                                               onchange="updateSetting('{{ user.UserId }}', 'canRegisterVisitor', this.checked)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </td>
+                                <td>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" 
+                                               class="combined-register-toggle"
+                                               data-userid="{{ user.UserId }}"
+                                               {% if user.CanRegisterCombined %}checked{% endif %}
+                                               onchange="handleCombinedAccess('{{ user.UserId }}', this)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </td>
+                                <td>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" 
+                                               class="visitor-access-toggle"
+                                               data-userid="{{ user.UserId }}"
+                                               {% if user.CanViewVisitors %}checked{% endif %}
+                                               onchange="handleVisitorAccess('{{ user.UserId }}', this)">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+<!-- Zone Requests Table -->
+<div class="card mb-3">
+    <div class="card-header bg-secondary text-white">
+        <h5 class="mb-0">Zone Requests</h5>
+    </div>
+    <div class="card-body">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Zone Requests</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <label class="toggle-switch">
+                            <input type="checkbox" 
+                                   {% if user.CanAccessZoneRequests %}checked{% endif %}
+                                   onchange="updateSetting('{{ user.UserId }}', 'canAccessZoneRequests', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</div>
+</div>
+{% endfor %}
+</div>
+
+<div id="visitorCompanyAccessModal" class="modal-overlay">
+    <div class="modal-container">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Company Access Settings for Visitors</h5>
+                <button type="button" class="close-button" onclick="closeVisitorModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Select companies for visitor access:</p>
+                <div class="select-all-container">
+                    <label>
+                        <input type="checkbox" id="selectAllVisitorCompanies" onchange="toggleAllVisitorCompanies()">
+                        All Companies
+                    </label>
+                </div>
+                <form id="visitorCompanyAccessForm">
+                    <div class="form-group">
+                        <select multiple class="form-control" id="visitorCompanySelect">
+                            {% for company in companies %}
+                            <option value="{{ company }}">{{ company }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeVisitorModal()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveVisitorCompanyAccess()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentUserId = null;
+let currentToggle = null;
+let currentVisitorUserId = null;
+let currentVisitorToggle = null;
+let currentCombinedUserId = null;
+let currentCombinedToggle = null;
+
+async function handleCombinedAccess(userId, toggleElement) {
+    currentCombinedUserId = userId;
+    currentCombinedToggle = toggleElement;
+
+    if (toggleElement.checked) {
+        showCombinedModal(userId);
+    } else {
+        const confirmed = confirm('Are you sure you want to remove combined register access?');
+        if (!confirmed) {
+            toggleElement.checked = true;
+            return;
+        }
+
+        try {
+            const response = await $.ajax({
+                url: '/remove_combined_company_access',
+                type: 'POST',
+                data: { userId: userId }
+            });
+
+            if (!response.success) {
+                throw new Error(response.message || 'Failed to remove combined register company access');
+            }
+
+            await updateSetting(userId, 'canRegisterCombined', false);
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error updating permission: ' + error.message);
+            toggleElement.checked = true;
+        }
+    }
+}
+
+
+function showCombinedModal(userId) {
+    currentCombinedUserId = userId;
+    const modal = document.getElementById('combinedRegisterModal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+
+    const selectAllCheckbox = document.getElementById('selectAllCombinedCompanies');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+
+    loadUserCombinedCompanies(userId);
+}
+
+function toggleAllCombinedCompanies() {
+    const selectAll = document.getElementById('selectAllCombinedCompanies');
+    const companySelect = document.getElementById('combinedCompanySelect');
+    if (selectAll && companySelect) {
+        const options = companySelect.options;
+        for (let i = 0; i < options.length; i++) {
+            options[i].selected = selectAll.checked;
+        }
+    }
+}
+
+async function loadUserCombinedCompanies(userId) {
+    try {
+        const response = await $.ajax({
+            url: '/get_user_combined_companies',
+            type: 'GET',
+            data: { userId: userId }
+        });
+
+        if (response.success) {
+            const companySelect = document.getElementById('combinedCompanySelect');
+            if (companySelect) {
+                // Clear existing options
+                companySelect.innerHTML = '';
+                
+                // Add all companies as options
+                response.companies.forEach(company => {
+                    const option = new Option(company, company);
+                    companySelect.add(option);
+                    
+                    // Set selected if company is in user's selected companies
+                    if (response.selectedCompanies.includes(company)) {
+                        option.selected = true;
+                    }
+                });
+
+                // Update select all checkbox
+                const selectAll = document.getElementById('selectAllCombinedCompanies');
+                if (selectAll) {
+                    selectAll.checked = response.selectedCompanies.length === response.companies.length;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading combined register companies:', error);
+        alert('Error loading companies. Please try again.');
+    }
+}
+
+function closeCombinedModal() {
+    const modal = document.getElementById('combinedRegisterModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    clearCombinedModalSelections();
+    if (currentCombinedToggle && currentCombinedToggle.checked) {
+        currentCombinedToggle.checked = false;
+        updateSetting(currentCombinedUserId, 'canRegisterCombined', false);
+    }
+}
+
+function clearCombinedModalSelections() {
+    const companySelect = document.getElementById('combinedCompanySelect');
+    if (companySelect) {
+        $('#combinedCompanySelect').val([]);
+    }
+    currentCombinedUserId = null;
+    currentCombinedToggle = null;
+}
+
+async function saveCombinedCompanyAccess() {
+    if (!currentCombinedUserId || !currentCombinedToggle) return;
+
+    const selectedCompanies = $('#combinedCompanySelect').val();
+
+    if (!selectedCompanies || selectedCompanies.length === 0) {
+        alert('Please select at least one company');
+        return;
+    }
+
+    try {
+        await updateSetting(currentCombinedUserId, 'canRegisterCombined', true);
+
+        const result = await $.ajax({
+            url: '/update_combined_company_access',
+            type: 'POST',
+            data: {
+                userId: currentCombinedUserId,
+                companies: JSON.stringify(selectedCompanies)
+            }
+        });
+
+        if (!result.success) {
+            throw new Error(result.message || 'Failed to update combined register company access');
+        }
+
+        closeCombinedModal();
+        if (currentCombinedToggle) {
+            currentCombinedToggle.checked = true;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error updating combined register company access: ' + error.message);
+        if (currentCombinedToggle) {
+            currentCombinedToggle.checked = false;
+        }
+        closeCombinedModal();
+    }
+}
+
+// Update window click handler
+window.onclick = function(event) {
+    const employeeModal = document.getElementById('companyAccessModal');
+    const visitorModal = document.getElementById('visitorCompanyAccessModal');
+    const combinedModal = document.getElementById('combinedRegisterModal');
+    
+    if (employeeModal && event.target === employeeModal) {
+        closeModal();
+    }
+    
+    if (visitorModal && event.target === visitorModal) {
+        closeVisitorModal();
+    }
+
+    if (combinedModal && event.target === combinedModal) {
+        closeCombinedModal();
+    }
+}
+
+function toggleUserDetails(userId) {
+    const detailsSection = document.getElementById(`details-${userId}`);
+    const chevron = document.getElementById(`chevron-${userId}`);
+    
+    if (detailsSection.style.display === 'none') {
+        detailsSection.style.display = 'block';
+        chevron.classList.remove('fa-chevron-down');
+        chevron.classList.add('fa-chevron-up');
+    } else {
+        detailsSection.style.display = 'none';
+        chevron.classList.remove('fa-chevron-up');
+        chevron.classList.add('fa-chevron-down');
+    }
+}
+
+function showModal(userId) {
+    currentUserId = userId;
+    const modal = document.getElementById('companyAccessModal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+
+    const selectAllCheckbox = document.getElementById('selectAllCompanies');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+
+    loadUserCompanies(userId);
+}
+
+function showVisitorModal(userId) {
+    currentVisitorUserId = userId;
+    const modal = document.getElementById('visitorCompanyAccessModal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+
+    const selectAllCheckbox = document.getElementById('selectAllVisitorCompanies');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+    }
+
+    loadUserVisitorCompanies(userId);
+}
+
+function toggleAllCompanies() {
+    const selectAll = document.getElementById('selectAllCompanies');
+    const companySelect = document.getElementById('companySelect');
+    if (selectAll && companySelect) {
+        const options = companySelect.options;
+        for (let i = 0; i < options.length; i++) {
+            options[i].selected = selectAll.checked;
+        }
+    }
+}
+
+function toggleAllVisitorCompanies() {
+    const selectAll = document.getElementById('selectAllVisitorCompanies');
+    const companySelect = document.getElementById('visitorCompanySelect');
+    if (selectAll && companySelect) {
+        const options = companySelect.options;
+        for (let i = 0; i < options.length; i++) {
+            options[i].selected = selectAll.checked;
+        }
+    }
+}
+
+async function loadUserCompanies(userId) {
+    try {
+        const response = await $.ajax({
+            url: '/get_user_companies',
+            type: 'GET',
+            data: { userId: userId }
+        });
+
+        if (response.success) {
+            const companySelect = document.getElementById('companySelect');
+            if (companySelect) {
+                $('#companySelect').val(response.companies);
+
+                const allSelected = response.companies.length === companySelect.options.length;
+                const selectAll = document.getElementById('selectAllCompanies');
+                if (selectAll) {
+                    selectAll.checked = allSelected;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading user companies:', error);
+    }
+}
+
+async function loadUserVisitorCompanies(userId) {
+    try {
+        const response = await $.ajax({
+            url: '/get_user_visitor_companies',
+            type: 'GET',
+            data: { userId: userId }
+        });
+
+        if (response.success) {
+            const companySelect = document.getElementById('visitorCompanySelect');
+            if (companySelect) {
+                // Clear existing options
+                companySelect.innerHTML = '';
+                
+                // Add all companies as options
+                response.companies.forEach(company => {
+                    const option = new Option(company, company);
+                    companySelect.add(option);
+                    
+                    // Set selected if company is in user's selected companies
+                    if (response.selectedCompanies.includes(company)) {
+                        option.selected = true;
+                    }
+                });
+
+                // Update select all checkbox
+                const selectAll = document.getElementById('selectAllVisitorCompanies');
+                if (selectAll) {
+                    selectAll.checked = response.selectedCompanies.length === response.companies.length;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error loading user visitor companies:', error);
+        alert('Error loading companies. Please try again.');
+    }
+}
+
+function closeModal() {
+    const modal = document.getElementById('companyAccessModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    clearModalSelections();
+    if (currentToggle && currentToggle.checked) {
+        currentToggle.checked = false;
+        updateSetting(currentUserId, 'canViewEmployees', false);
+    }
+}
+
+function closeVisitorModal() {
+    const modal = document.getElementById('visitorCompanyAccessModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    clearVisitorModalSelections();
+    if (currentVisitorToggle && currentVisitorToggle.checked) {
+        currentVisitorToggle.checked = false;
+        updateSetting(currentVisitorUserId, 'canViewVisitors', false);
+    }
+}
+
+function clearModalSelections() {
+    const companySelect = document.getElementById('companySelect');
+    if (companySelect) {
+        $('#companySelect').val([]);
+    }
+    currentUserId = null;
+    currentToggle = null;
+}
+
+function clearVisitorModalSelections() {
+    const companySelect = document.getElementById('visitorCompanySelect');
+    if (companySelect) {
+        $('#visitorCompanySelect').val([]);
+    }
+    currentVisitorUserId = null;
+    currentVisitorToggle = null;
+}
+
+async function handleEmployeeAccess(userId, toggleElement) {
+    currentToggle = toggleElement;
+
+    if (toggleElement.checked) {
+        showModal(userId);
+    } else {
+        const confirmed = confirm('Are you sure you want to remove employee access?');
+        if (!confirmed) {
+            toggleElement.checked = true;
+            return;
+        }
+
+        try {
+            const removeResult = await $.ajax({
+                url: '/remove_company_access',
+                type: 'POST',
+                data: { userId: userId }
+            });
+
+            if (!removeResult.success) {
+                throw new Error(removeResult.message || 'Failed to remove company access');
+            }
+
+            await updateSetting(userId, 'canViewEmployees', false);
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error updating permission: ' + error.message);
+            toggleElement.checked = true;
+        }
+    }
+}
+
+
+async function handleVisitorAccess(userId, toggleElement) {
+    currentVisitorToggle = toggleElement;
+
+    if (toggleElement.checked) {
+        showVisitorModal(userId);
+    } else {
+        const confirmed = confirm('Are you sure you want to remove visitor access?');
+        if (!confirmed) {
+            toggleElement.checked = true;
+            return;
+        }
+
+        try {
+            const removeResult = await $.ajax({
+                url: '/remove_visitor_company_access',
+                type: 'POST',
+                data: { userId: userId }
+            });
+
+            if (!removeResult.success) {
+                throw new Error(removeResult.message || 'Failed to remove visitor company access');
+            }
+
+            await updateSetting(userId, 'canViewVisitors', false);
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error updating permission: ' + error.message);
+            toggleElement.checked = true;
+        }
+    }
+}
+
+async function saveCompanyAccess() {
+    if (!currentUserId || !currentToggle) return;
+
+    const selectedCompanies = $('#companySelect').val();
+
+    if (!selectedCompanies || selectedCompanies.length === 0) {
+        alert('Please select at least one company');
+        return;
+    }
+
+    try {
+        await updateSetting(currentUserId, 'canViewEmployees', true);
+
+        const result = await $.ajax({
+            url: '/update_company_access',
+            type: 'POST',
+            data: {
+                userId: currentUserId,
+                companies: JSON.stringify(selectedCompanies)
+            }
+        });
+
+        if (!result.success) {
+            throw new Error(result.message || 'Failed to update company access');
+        }
+
+        closeModal();
+        if (currentToggle) {
+            currentToggle.checked = true;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error updating company access: ' + error.message);
+        if (currentToggle) {
+            currentToggle.checked = false;
+        }
+        closeModal();
+    }
+}
+
+async function saveVisitorCompanyAccess() {
+    if (!currentVisitorUserId || !currentVisitorToggle) return;
+
+    const selectedCompanies = $('#visitorCompanySelect').val();
+
+    if (!selectedCompanies || selectedCompanies.length === 0) {
+        alert('Please select at least one company');
+        return;
+    }
+
+    try {
+        await updateSetting(currentVisitorUserId, 'canViewVisitors', true);
+
+        const result = await $.ajax({
+            url: '/update_visitor_company_access',
+            type: 'POST',
+            data: {
+                userId: currentVisitorUserId,
+                companies: JSON.stringify(selectedCompanies)
+            }
+        });
+
+        if (!result.success) {
+            throw new Error(result.message || 'Failed to update visitor company access');
+        }
+
+        closeVisitorModal();
+        if (currentVisitorToggle) {
+            currentVisitorToggle.checked = true;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error updating visitor company access: ' + error.message);
+        if (currentVisitorToggle) {
+            currentVisitorToggle.checked = false;
+        }
+        closeVisitorModal();
+    }
+}
+
+async function updateSetting(userId, setting, value) {
+    try {
+        const result = await $.ajax({
+            url: '/update_user_settings',
+            type: 'POST',
+            data: { userId, setting, value }
+        });
+
+        if (!result.success) {
+            throw new Error(result.message || 'Failed to update setting');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error updating setting: ' + error.message);
+        location.reload();
+    }
+}
+
+function searchUser() {
+    const searchValue = document.getElementById('userSearch').value.toLowerCase();
+    const rows = document.getElementsByClassName('user-row');
+    Array.from(rows).forEach(row => {
+        const userId = row.getAttribute('data-userid').toLowerCase();
+        row.style.display = userId.includes(searchValue) ? '' : 'none';
+    });
+}
+
+function showAllUsers() {
+    const rows = document.getElementsByClassName('user-row');
+    Array.from(rows).forEach(row => row.style.display = '');
+    document.getElementById('userSearch').value = '';
+}
+
+// Event Listeners
+document.getElementById('userSearch').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') searchUser();
+});
+
+window.onclick = function(event) {
+    const employeeModal = document.getElementById('companyAccessModal');
+    const visitorModal = document.getElementById('visitorCompanyAccessModal');
+    
+    if (employeeModal && event.target === employeeModal) {
+        closeModal();
+    }
+    
+    if (visitorModal && event.target === visitorModal) {
+        closeVisitorModal();
+    }
+}
+function initializeMultiSelects() {
+    // Add a helper message to the multi-select elements
+    const selectElements = document.querySelectorAll('select[multiple]');
+    selectElements.forEach(select => {
+        const helpText = document.createElement('small');
+        helpText.classList.add('text-muted', 'mt-1', 'd-block');
+        helpText.textContent = 'Tip: Hold Ctrl/Cmd to select multiple companies';
+        select.parentNode.appendChild(helpText);
+    });
+}
+
+// Call this function when document is ready
+document.addEventListener('DOMContentLoaded', function() {
+    initializeMultiSelects();
+});
+// Add this to your existing script tag
+document.addEventListener('DOMContentLoaded', function() {
+    // Add CSS for better multi-select styling
+    const style = document.createElement('style');
+    style.textContent = `
+        select[multiple] option:checked {
+            background-color: #007bff;
+            color: white;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    initializeMultiSelects();
+});
+</script>
+{% endblock %}
+    </body>
+    </html>    

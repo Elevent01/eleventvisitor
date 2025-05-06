@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visitor Details</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+:root {
+    --primary-color: #4CAF50;
+    --primary-light: #E8F5E9;
+    --primary-dark: #1B5E20;
+    --accent-color: #8BC34A;
+    --text-dark: #263238;
+    --text-light: #546E7A;
+    --border-color: #C8E6C9;
+    --background-light: #F9FFF9;
+    --box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+}
+
+body {
+    background-color: #F5F7F5;
+    color: var(--text-dark);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+}
+
+.visitor-profile {
+    max-width: 1100px;
+    margin: 2px auto;
+    margin-bottom: 2px auto;
+    padding: 0;
+    background-color: transparent;
+    display: block !important;
+    visibility: visible !important;
+    position: relative; /* For positioning of children */
+}
+.profile-details {
+    border-left: 2px solid rgba(59, 100, 112, 0.255);
+    border-right: 2px solid  rgba(59, 100, 112, 0.255);
+    border-bottom: 2px solid  rgba(59, 100, 112, 0.255);
+    border-radius: 0 0 8px 8px;
+    padding: 15px;
+    margin-top: 0; /* Ensure it connects with header */
+    background-color: white; /* Match header background */
+}
+.profile-details .card {
+    margin-bottom: 15px;
+}
+.profile-details .card:last-child {
+    margin-bottom: 0;
+}
+.profile-header {
+    background-color: white;
+    border-radius: 8px 8px 0 0;
+    padding: 15px;
+    margin-bottom: 0; 
+    box-shadow: var(--box-shadow);
+    border-top: 4px solid  #1B5E20;
+    border-left: 2px solid rgba(59, 100, 112, 0.255);
+    border-right: 2px solid rgba(59, 100, 112, 0.255);
+    border-bottom: none;
+    position: relative; 
+    z-index: 2; 
+}
+.profile-header::after {  
+    content: '';  
+    display: block;  
+    height: 2px; 
+    background-color: rgba(76, 175, 80, 0.2); 
+    margin: 0 15px; 
+    position: absolute;  
+    left: 0; 
+    bottom: -2px; 
+    right: 0; 
+}  
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.profile-info {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.visitor-name {
+    color: var(--primary-dark);
+    margin-bottom: 10px;
+    font-size: 1.4rem;
+    font-weight: 600;
+    border-bottom: none;
+    padding-bottom: 0;
+    display: inline-block;
+    width: 100%;
+}
+
+.contact-info, .organization-info {
+    margin-bottom: 0px ;
+    font-size: 0.9rem;
+    color: var(--text-dark);
+}
+
+.contact-info {
+    flex: 1;
+    padding-right: 10px;
+}
+
+.organization-info {
+    flex: 1;
+    padding-left: 10px;
+}
+
+.contact-info p, .organization-info p {
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+}
+
+.info-icon {
+    margin-right: 8px;
+    color: var(--primary-color);
+    width: 16px;
+    text-align: center;
+}
+
+.card {
+    border: none;
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.card-header {
+    background-color:#E8F5E9 !important;    
+    color:#1B5E20;
+    padding: 0px 0px !important;
+    border-bottom: none;
+}
+
+.card-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.card-body {
+    padding: 0px !important;
+    background-color: white;
+}
+
+.table {
+    margin-bottom: 0 !important;
+    font-size: 0.85rem;
+}
+
+.table th, .table td {
+    padding: 0px 0px !important;
+    vertical-align: middle;
+    border-color: var(--border-color);
+}
+
+.table th {
+    font-weight: 600;
+    color: var(--primary-dark);
+    background-color: var(--primary-light);
+    width: 40%;
+    font-size: 0.85rem;
+}
+
+/* Visitor Photos Styling */
+.photo-gallery {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+.photo-item {
+    flex: 1;
+    max-width: calc(50% - 7.5px);
+    text-align: center;
+}
+
+.photo-item h4 {
+    color: var(--primary-dark);
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+    text-align: center;
+    font-weight: 600;
+}
+
+.photo-container {
+    position: relative;
+    width: 50%;
+    height: 133px;
+    margin: 0 auto;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+    border: 2px solid var(--border-color);
+}
+
+.photo-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.no-photo {
+    width: 100%;
+    height: 100%;
+    background-color: var(--primary-light);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-color);
+    font-weight: 500;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.no-photo i {
+    margin-bottom: 8px;
+    font-size: 2rem;
+    opacity: 0.8;
+}
+
+.profile-footer {
+    position: fixed;
+    right: 15px;
+    bottom: 15px;
+    z-index: 9999;
+    display: flex;
+    gap: 8px;
+}
+
+.profile-footer .btn {
+    padding: 6px 14px;
+    border-radius: 50px;
+    font-weight: 500;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    font-size: 0.8rem;
+}
+
+.btn-secondary {
+    background-color: #90A4AE;
+    border-color: #90A4AE;
+}
+
+.btn-warning {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 12px rgba(0,0,0,0.15);
+}
+
+.visitor-status {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+    background-color: var(--primary-color);
+}
+
+.status-badge {
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-active {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.status-pending {
+    background-color: #FFC107;
+    color: #333;
+}
+
+.status-inactive {
+    background-color: #F44336;
+    color: white;
+}
+
+.profile-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+    overflow: hidden;
+}
+
+.section-title {
+    font-size: 1.1rem;
+    color: var(--primary-dark);
+    margin-bottom: 10px;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+/* Fix for icons in headings */
+.card-title i {
+    margin-right: 8px;
+    font-size: 0.9rem;
+}
+
+/* profile details layout */
+.profile-details .row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-right: -7px;
+    margin-left: -7px;
+}
+
+.profile-details .col-md-6 {
+    flex: 0 0 50%;
+    max-width: 50%;
+    padding-right: 7px;
+    padding-left: 7px;
+}
+
+/* Visitor information styling */
+.visitor-info-label {
+    background-color: var(--primary-light);
+    color: var(--primary-dark);
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.visitor-data {
+    font-weight: normal;
+    color: var(--text-dark);
+}
+
+.visitor-info-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.visitor-info-item {
+    margin: 0;
+    padding: 0;
+    white-space: nowrap;
+}
+
+/* Compact labels */
+.compact-label {
+    margin: 0;
+    padding: 0;
+}
+
+/*  responsiveness */
+@media (max-width: 767px) {
+    .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .profile-info {
+        flex-direction: column;
+    }
+    
+    .contact-info, .organization-info {
+        padding: 0;
+        width: 100%;
+    }
+    
+    .profile-details .col-md-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    .photo-gallery {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .photo-item {
+        max-width: 100%;
+    }
+    
+    .photo-container {
+        height: 200px;
+        max-width: 250px;
+    }
+}
+    </style>
+</head>
+<body>
+    {% extends "dashboard.html" %}
+
+{% block content %}
+<div class="container visitor-profile">
+    <div class="profile-header">
+        <div class="header-content">
+            <!-- Left section for Visitor Info -->
+            <div class="profile-info">
+                <h1 class="visitor-name">{{ visitor['FirstName'] }} {{ visitor['LastName'] }}</h1>
+                <div class="contact-info">
+                    <p><span class="info-icon"><i class="fas fa-id-card"></i></span> <strong>Visitor ID:</strong> {{ visitor['VisitorId'] or 'N/A' }}</p>
+                    <p><span class="info-icon"><i class="fas fa-envelope"></i></span> <strong>Email:</strong> {{ visitor['Email'] }}</p>
+                    <p><span class="info-icon"><i class="fas fa-phone"></i></span> <strong>Phone:</strong> {{ visitor['Phone'] }}</p>
+                </div>
+                <div class="organization-info">
+                    <p><span class="info-icon"><i class="fas fa-building"></i></span> <strong>Organization:</strong> {{ visitor['OrganizationName'] or 'N/A' }}</p>
+                    <p><span class="info-icon"><i class="fas fa-briefcase"></i></span> <strong>Visitor Organization:</strong> {{ visitor['VisitorOrganization'] or 'N/A' }}</p>
+                    <p><span class="info-icon"><i class="fas fa-map-marker-alt"></i></span> <strong>Location:</strong> {{ visitor['OrganizationLocation'] or 'N/A' }}</p>
+                </div>
+                <div class="mt-3">
+                    <span class="status-badge {% if visitor['VisitorStatus'] == 'Active' %}status-active{% elif visitor['VisitorStatus'] == 'Pending' %}status-pending{% else %}status-inactive{% endif %}">
+                        {{ visitor['VisitorStatus'] }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="profile-details">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-user mr-2"></i> Visitor Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="table">
+                            <tr>
+                                <th>Visitor ID</th>
+                                <td>{{ visitor['VisitorId'] }}</td>
+                            </tr>
+                            <tr>
+                                <th>Visitor Organization</th>
+                                <td>{{ visitor['VisitorOrganization'] }}</td>
+                            </tr>
+                            <tr>
+                                <th>Visitor Location</th>
+                                <td>{{ visitor['VisitorLocation'] }}</td>
+                            </tr>
+                            <tr>
+                                <th>Host</th>
+                                <td>{{ visitor['HostName'] }}</td>
+                            </tr>
+                            <tr>
+                                <th>Visit Date</th>
+                                <td>{{ visitor['VisitDate'] }}</td>
+                            </tr>
+                            <tr>
+                                <th>Visit Purpose</th>
+                                <td>{{ visitor['VisitPurpose'] }}</td>
+                            </tr>
+                            <tr>
+                                <th>Visit Status</th>
+                                <td>
+                                    <span class="status-badge {% if visitor['VisitorStatus'] == 'Active' %}status-active{% elif visitor['VisitorStatus'] == 'Pending' %}status-pending{% else %}status-inactive{% endif %}">
+                                        {{ visitor['VisitorStatus'] }}
+                                    </span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-calendar-check mr-2"></i> Appointment Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="table">
+                            <tr>
+                                <th>Appointment ID</th>
+                                <td>{{ visitor['AppointmentId'] }}</td>
+                            </tr>
+                            <tr>
+                                <th>Appointment Date</th>
+                                <td>{{ visitor['AppointmentDate'] }}</td>
+                            </tr>
+                            <tr>
+                                <th>Location</th>
+                                <td>{{ visitor['AppointmentLocation'] }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <!-- Photos section -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-images mr-2"></i> Visitor Photos</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="photo-gallery">
+                            <div class="photo-item">
+                                <h4>In-Time Photo</h4>
+                                <div class="photo-container">
+                                    {% if visitor['VisitorPhoto'] %}
+                                        <img src="{{ url_for('static', filename='visitor_photos/' + visitor.VisitorPhoto) }}" 
+                                             alt="Visitor Photo" class="photo-preview" 
+                                             id="preview-{{ visitor.AppointmentId }}">
+                                    {% else %}
+                                        <div class="no-photo" id="preview-{{ visitor.AppointmentId }}">
+                                            <i class="fas fa-clock fa-2x mb-2"></i><br>
+                                            No In-Time Photo
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="photo-item">
+                                <h4>Out-Time Photo</h4>
+                                <div class="photo-container">
+                                    {% if visitor['OutTimePhoto'] %}
+                                        <img src="{{ url_for('static', filename='out_time_photos/' + visitor.OutTimePhoto) }}" 
+                                             alt="Out Time Photo" class="photo-preview" 
+                                             id="out-time-preview-{{ visitor.AppointmentId }}">
+                                    {% else %}
+                                        <div class="no-photo" id="out-time-preview-{{ visitor.AppointmentId }}">
+                                            <i class="fas fa-sign-out-alt fa-2x mb-2"></i><br>
+                                            No Out-Time Photo
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                            
+                                            <div class="card mb-4">
+                                                <div class="card-header">
+                                                    <h3 class="card-title"><i class="fas fa-clock mr-2"></i> Time and Access Details</h3>
+                                                </div>
+                                                <div class="card-body">
+                                                    <table class="table">
+                                                        <tr>
+                                                            <th>Check-In Time</th>
+                                                            <td>{{ visitor['CheckInTime'] or 'N/A' }}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>Check-Out Time</th>
+                                                            <td>{{ visitor['CheckOutTime'] or 'N/A' }}</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <th>Zone Status</th>
+                                                            <td>{{ visitor['ZoneStatus'] }}</td>
+                                                        </tr>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            
+                                <div class="profile-footer">
+                                    
+                                    <a href="{{ url_for('edit_visitor', visitor_id=visitor.VisitorId) }}" class="btn btn-warning">
+                                        <i class="fas fa-edit mr-2"></i>Update
+                                    </a>
+                                </div>
+                            </div>
+                            {% endblock %}
+                            </body>
+                            </html>

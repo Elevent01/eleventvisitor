@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Visitor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/css/bootstrap.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-bg: #f8f9fa;
+            --dark-bg: #2c3e50;
+        }
+
+        body {
+            background-color: #f5f6fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-top: 60px;
+            padding-bottom: 40px;
+        }
+
+        .navbar-fixed {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1030;
+            background-color: var(--primary-color);
+            padding: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .page-title {
+            color: white;
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .main-container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+
+        .form-section {
+            background-color: var(--light-bg);
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--secondary-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+
+        .form-control {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px 12px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+        }
+
+        .required-field::after {
+            content: "*";
+            color: var(--danger-color);
+            margin-left: 4px;
+        }
+
+        .btn-submit {
+            background-color: var(--success-color);
+            border: none;
+            padding: 10px 30px;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn-submit:hover {
+            background-color: #219a52;
+        }
+
+        .btn-back {
+            background-color: var(--secondary-color);
+            border: none;
+            padding: 10px 30px;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn-back:hover {
+            background-color: #2980b9;
+        }
+
+        .fixed-bottom-buttons {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            background-color: white;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .error-feedback {
+            color: var(--danger-color);
+            font-size: 0.875rem;
+            margin-top: 4px;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                margin: 10px;
+                padding: 15px;
+            }
+
+            .form-section {
+                padding: 15px;
+            }
+
+            .fixed-bottom-buttons {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar-fixed">
+        <div class="container">
+            <h1 class="page-title">Edit Visitor</h1>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container main-container">
+        <form id="editVisitorForm" method="POST">
+            <!-- Personal Information Section -->
+            <div class="form-section">
+                <h3 class="section-title">Personal Information</h3>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="first_name">First Name</label>
+                            <input type="text" class="form-control" id="first_name" name="first_name" 
+                                   value="{{ visitor[1] }}" required>
+                            <div class="error-feedback">Please enter first name</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="last_name">Last Name</label>
+                            <input type="text" class="form-control" id="last_name" name="last_name" 
+                                   value="{{ visitor[2] }}" required>
+                            <div class="error-feedback">Please enter last name</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="email">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="{{ visitor[3] }}" required>
+                            <div class="error-feedback">Please enter a valid email address</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="phone">Phone</label>
+                            <input type="tel" class="form-control" id="phone" name="phone" 
+                                   value="{{ visitor[4] }}" required>
+                            <div class="error-feedback">Please enter a valid phone number</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Organization Details Section -->
+            <div class="form-section">
+                <h3 class="section-title">Organization Details</h3>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="visitor_organization">Visitor Organization</label>
+                            <input type="text" class="form-control" id="visitor_organization" 
+                                   name="visitor_organization" value="{{ visitor[5] }}" required>
+                            <div class="error-feedback">Please enter visitor organization</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="visitor_location">Visitor Location</label>
+                            <input type="text" class="form-control" id="visitor_location" 
+                                   name="visitor_location" value="{{ visitor[6] }}" required>
+                            <div class="error-feedback">Please enter visitor location</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Update Reason Section -->
+            <div class="form-section">
+                <h3 class="section-title">Update Information</h3>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="form-group">
+                            <label class="required-field" for="update_reason">Update Reason</label>
+                            <select class="form-control" id="update_reason" name="update_reason" required>
+                                <option value="">Select Update Reason</option>
+                                <option value="Information Correction">Information Correction</option>
+                                <option value="Schedule Change">Schedule Change</option>
+                                <option value="Organization Change">Organization Change</option>
+                                <option value="Contact Details Update">Contact Details Update</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <div class="error-feedback">Please select update reason</div>
+                        </div>
+                        <div id="other_reason_container" class="form-group" style="display: none;">
+                            <label class="required-field" for="other_reason">Specify Other Reason</label>
+                            <textarea class="form-control" id="other_reason" name="other_reason" rows="3"></textarea>
+                            <div class="error-feedback">Please specify the other reason</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Fixed Bottom Buttons -->
+    <div class="fixed-bottom-buttons">
+        <button type="button" class="btn btn-secondary" onclick="window.history.back()">Back</button>
+        <button type="submit" form="editVisitorForm" class="btn btn-primary">Update Visitor</button>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.1/umd/popper.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/js/bootstrap.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Handle "Other" reason selection
+            $('#update_reason').on('change', function() {
+                const otherContainer = $('#other_reason_container');
+                const otherTextarea = $('#other_reason');
+                
+                if (this.value === 'Other') {
+                    otherContainer.show();
+                    otherTextarea.prop('required', true);
+                } else {
+                    otherContainer.hide();
+                    otherTextarea.prop('required', false);
+                    otherTextarea.val('');
+                }
+            });
+        
+            $('#editVisitorForm').on('submit', function(e) {
+                e.preventDefault();
+                let formData = new FormData(this);
+                
+                // Include other reason in update_reason if "Other" is selected
+                if ($('#update_reason').val() === 'Other') {
+                    const otherReason = $('#other_reason').val();
+                    if (otherReason) {
+                        formData.set('update_reason', 'Other: ' + otherReason);
+                    }
+                }
+                
+                $.ajax({
+                    url: "{{ url_for('edit_visitor', visitor_id=visitor[0]) }}",
+                    type: "POST",
+                    data: Object.fromEntries(formData),
+                    success: function(response) {
+                        if(response.success) {
+                            alert("Visitor updated successfully!");
+                            window.history.back();
+                        } else {
+                            alert("Error updating visitor: " + response.message);
+                        }
+                    },
+                    error: function(xhr) {
+                        let errorMessage = "An error occurred while updating the visitor.";
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMessage = xhr.responseJSON.message;
+                        }
+                        alert(errorMessage);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Role Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --primary-light: #E8F5E9;
+            --primary-dark: #1B5E20;
+            --accent-color: #8BC34A;
+            --text-dark: #263238;
+            --text-light: #546E7A;
+            --border-color: #C8E6C9;
+            --background-light: #F9FFF9;
+            --box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+        }
+
+        body {
+            background-color: #F5F7F5;
+            color: var(--text-dark);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 2px auto;
+            padding: 0;
+            background-color: transparent;
+            display: block !important;
+            visibility: visible !important;
+            position: relative;
+        }
+
+        /* Profile header styling */
+        .profile-header {
+            background-color: white;
+            border-radius: 8px 8px 0 0;
+            padding: 15px;
+            margin-bottom: 0; 
+            box-shadow: var(--box-shadow);
+            border-top: 4px solid #1B5E20;
+            border-left: 2px solid rgba(59, 100, 112, 0.255);
+            border-right: 2px solid rgba(59, 100, 112, 0.255);
+            border-bottom: none;
+            position: relative; 
+            z-index: 2; 
+        }
+
+        .profile-header::after {  
+            content: '';  
+            display: block;  
+            height: 2px; 
+            background-color: rgba(76, 175, 80, 0.2); 
+            margin: 0 15px; 
+            position: absolute;  
+            left: 0; 
+            bottom: -2px; 
+            right: 0; 
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Role content area styling */
+        .role-details {
+            border-left: 2px solid rgba(59, 100, 112, 0.255);
+            border-right: 2px solid rgba(59, 100, 112, 0.255);
+            border-bottom: 2px solid rgba(59, 100, 112, 0.255);
+            border-radius: 0 0 8px 8px;
+            padding: 15px;
+            margin-top: 0;
+            background-color: white;
+        }
+
+        /* Button styling */
+        #showModalBtn {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 6px 14px;
+            font-weight: 500;
+            font-size: 0.8rem;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        #showModalBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 12px rgba(0,0,0,0.15);
+        }
+
+        /* Show more button styling */
+        #showMoreBtn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 14px;
+            font-weight: 500;
+            font-size: 0.8rem;
+            margin-top: 15px;
+            display: block;
+            width: 100%;
+            text-align: center;
+        }
+
+        #showMoreBtn:hover {
+            background-color: var(--primary-dark);
+        }
+
+        /* Table styling */
+        table {
+            width: 100%;
+            margin: 15px 0 0 0;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        table, th, td {
+            border: 1px solid var(--border-color);
+        }
+
+        th, td {
+            padding: 6px 10px;
+            vertical-align: middle;
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--primary-dark);
+            background-color: var(--primary-light);
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* Flash messages */
+        .alert {
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 4px;
+            list-style-type: none;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* Back button */
+        .btn-back {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            background-color: #90A4AE;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 50px;
+            font-weight: 500;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            font-size: 0.8rem;
+            text-decoration: none;
+        }
+
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 12px rgba(0,0,0,0.15);
+            text-decoration: none;
+            color: white;
+        }
+
+        /* Form styling */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-control {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .btn-warning {
+            background-color: #ffc107;
+            color: black;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-warning:hover {
+            background-color: #e0a800;
+        }
+
+        /* Page title */
+        .page-title {
+            color: var(--primary-dark);
+            margin: 0;
+            padding: 0;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        /* Hide additional roles by default */
+        .additional-role {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    {% extends "dashboard.html" %}
+    
+    {% block content %}
+    <div class="container">
+        <!-- Header section -->
+        <div class="profile-header">
+            <div class="header-content">
+                <h1 class="page-title">Role Management</h1>
+                <button id="showModalBtn" class="btn">
+                    <i class="fas fa-plus-circle mr-2"></i>Add New Role
+                </button>
+            </div>
+        </div>
+
+        <!-- Role details section -->
+        <div class="role-details">
+            <!-- Alert message area -->
+            <div id="alertMessage" class="alert" style="display: none;"></div>
+
+            <!-- Table to display role data -->
+            <table class="table" id="rolesTable">
+                <thead>
+                    <tr>
+                        <th>Role ID</th>
+                        <th>Role Name</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for role in existing_roles %}
+                    <tr class="{{ 'additional-role' if loop.index > 3 else '' }}">
+                        <td>{{ role[0] }}</td>
+                        <td>{{ role[1] }}</td>
+                        <td>
+                            <button class="btn btn-warning" onclick="openEditModal('{{ role[0] }}', '{{ role[1] }}')">
+                                <i class="fas fa-edit mr-1"></i>Edit
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <!-- Show More Button -->
+            <button id="showMoreBtn" >Show More Roles</button>     
+           </div>
+
+        <!-- Add Role Modal -->
+        <div id="roleModal" class="modal">
+            <div class="modal-content">
+                <span class="close" id="closeModalBtn">&times;</span>
+                <h3>Add New Role</h3>
+                <form id="addRoleForm" onsubmit="return handleAddRole(event)">
+                    <div class="form-group">
+                        <label for="roleName">Role Name:</label>
+                        <input type="text" class="form-control" name="roleName" id="roleName" required minlength="2" maxlength="50">
+                    </div>
+                    <button type="submit" id="submitBtn" class="btn btn-primary">Add Role</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Modal -->
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <span class="close" onclick="closeModal()">&times;</span>
+                <h3>Edit Role</h3>
+                <form id="editForm" onsubmit="return handleEditRole(event)">
+                    <input type="hidden" id="editRoleId" name="roleId">
+                    <div class="form-group">
+                        <label for="editRoleName">Role Name:</label>
+                        <input type="text" class="form-control" id="editRoleName" name="roleName" required minlength="2" maxlength="50">
+                    </div>
+                    <button type="submit" id="updateBtn" class="btn btn-primary">Update Role</button>
+                    <button type="button" class="btn btn-warning" onclick="closeModal()">Cancel</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Back to Dashboard Button -->
+        <a href="{{ url_for('dashboard') }}" class="btn btn-back">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </a>
+    </div>
+    
+    <script>
+        // Show/Hide Add Role Modal
+        document.getElementById('showModalBtn').onclick = function() {
+            document.getElementById('roleModal').style.display = 'block';
+        };
+
+        document.getElementById('closeModalBtn').onclick = function() {
+            document.getElementById('roleModal').style.display = 'none';
+        };
+
+        // Show more roles button functionality
+        document.getElementById('showMoreBtn').onclick = function() {
+            var additionalRoles = document.getElementsByClassName('additional-role');
+            for (var i = 0; i < additionalRoles.length; i++) {
+                additionalRoles[i].style.display = 'table-row';
+            }
+            this.style.display = 'none';
+        };
+
+        function showAlert(message, type) {
+            const alert = document.getElementById('alertMessage');
+            alert.textContent = message;
+            alert.className = `alert alert-${type}`;
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 3000);
+        }
+
+        async function handleAddRole(event) {
+            event.preventDefault();
+            const form = event.target;
+            const submitBtn = form.querySelector('#submitBtn');
+            submitBtn.disabled = true;
+
+            try {
+                const formData = new FormData(form);
+                const response = await fetch('{{ url_for("add_role") }}', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Role added successfully!', 'success');
+                    form.reset();
+                    document.getElementById('roleModal').style.display = 'none';
+                    
+                    // Immediately update the table with the new role
+                    if (data.role) {
+                        const tbody = document.querySelector('#rolesTable tbody');
+                        const allRows = tbody.querySelectorAll('tr');
+                        const visibleRows = tbody.querySelectorAll('tr:not(.additional-role)');
+                        
+                        const newRow = document.createElement('tr');
+                        newRow.innerHTML = `
+                            <td>${data.role.role_id}</td>
+                            <td>${data.role.role_name}</td>
+                            <td>
+                                <button class="btn btn-warning" onclick="openEditModal('${data.role.role_id}', '${data.role.role_name}')">
+                                    <i class="fas fa-edit mr-1"></i>Edit
+                                </button>
+                            </td>
+                        `;
+                        
+                        // If already 3 visible roles, make this a hidden one
+                        if (visibleRows.length >= 3) {
+                            newRow.classList.add('additional-role');
+                            document.getElementById('showMoreBtn').style.display = 'block';
+                        }
+                        
+                        tbody.appendChild(newRow);
+                    }
+                } else {
+                    showAlert(data.message || 'Error adding role', 'danger');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('An error occurred. Please try again.', 'danger');
+            } finally {
+                submitBtn.disabled = false;
+            }
+        }
+
+        async function handleEditRole(event) {
+            event.preventDefault();
+            const form = event.target;
+            const updateBtn = form.querySelector('#updateBtn');
+            updateBtn.disabled = true;
+
+            try {
+                const formData = new FormData(form);
+                const response = await fetch('{{ url_for("edit_role") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        roleId: formData.get('roleId'),
+                        roleName: formData.get('roleName')
+                    }),
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Role updated successfully!', 'success');
+                    closeModal();
+                    loadRoles();
+                } else {
+                    showAlert(data.message || 'Error updating role', 'danger');
+                }
+            } catch (error) {
+                showAlert('An error occurred. Please try again.', 'danger');
+            } finally {
+                updateBtn.disabled = false;
+            }
+        }
+
+        async function loadRoles() {
+            try {
+                const response = await fetch('{{ url_for("get_roles") }}');
+                const roles = await response.json();
+                
+                const tbody = document.querySelector('#rolesTable tbody');
+                tbody.innerHTML = roles.map((role, index) => `
+                    <tr class="${index >= 3 ? 'additional-role' : ''}">
+                        <td>${role.role_id}</td>
+                        <td>${role.role_name}</td>
+                        <td>
+                            <button class="btn btn-warning" onclick="openEditModal('${role.role_id}', '${role.role_name}')">
+                                <i class="fas fa-edit mr-1"></i>Edit
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+                
+                // Show or hide the "Show More" button based on number of roles
+                if (roles.length > 3) {
+                    document.getElementById('showMoreBtn').style.display = 'block';
+                } else {
+                    document.getElementById('showMoreBtn').style.display = 'none';
+                }
+            } catch (error) {
+                showAlert('Error loading roles', 'danger');
+            }
+        }
+
+        function openEditModal(roleId, roleName) {
+            document.getElementById('editModal').style.display = 'block';
+            document.getElementById('editRoleId').value = roleId;
+            document.getElementById('editRoleName').value = roleName;
+        }
+
+        function closeModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+    </script>
+    {% endblock %}
+</body>
+</html>

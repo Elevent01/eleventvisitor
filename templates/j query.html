@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Employees</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #f39c12;
+            --accent-color: #e74c3c;
+            --background-color: #f8f9f4;
+            --text-color-dark: #2c3e50;
+            --text-color-light: #ffffff;
+            --sidebar-width: 17.5rem;
+        }
+
+        .container {
+            background-color: var(--background-color);
+            border-radius: 0rem;
+            padding: .1rem;
+            box-shadow: 0 1rem 2.1875rem rgba(0, 0, 0, 0.08);
+            max-height: 31.25rem;
+            margin-top: -10px;
+            border-color: #090101;
+            background: #ffffff;
+        }
+
+        /* Modal styles */
+        .modal-dialog {
+            max-width: 800px;
+        }
+
+        .modal-body table {
+            width: 100%;
+        }
+
+        .action-icons {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    {% extends "dashboard.html" %}
+
+    {% block content %}
+    
+    <div class="container">
+        <table class="table table-striped table-bordered mt-3">
+            <thead class="thead-green">
+                <tr>
+                    <th>Photo</th>
+                    <th>ID</th>
+                    <th>First Name</th>
+                    <th>Last Name</th>
+                    <th>Email</th>
+                    <th>Phone Number</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if not employees %}
+                    <tr>
+                        <td colspan="7">No employees found.</td>
+                    </tr>
+                {% else %}
+                    {% for employee in employees %}
+                    <tr>
+                        <td class="profile-photo">
+                            {% if employee.Photo %}
+                                <img src="{{ url_for('static', filename='profile_photos/' + employee.Photo) }}" alt="Profile Picture" style="max-width: 50px; max-height: 50px;">
+                            {% else %}
+                                <img src="{{ url_for('static', filename='default_profile.png') }}" alt="Default Profile Picture" style="max-width: 50px; max-height: 50px;">
+                            {% endif %}
+                        </td>
+                        <td>{{ employee.Employee_Id }}</td>
+                        <td>{{ employee.First_Name }}</td>
+                        <td>{{ employee.Last_Name }}</td>
+                        <td>{{ employee.Email }}</td>
+                        <td>{{ employee.PhoneNumber }}</td>
+                        <td>
+                            <div class="action-icons">
+                                <i class="fas fa-eye text-primary mr-2 view-employee" data-toggle="modal" data-target="#employeeDetailsModal" 
+                                   data-photo="{{ url_for('static', filename='profile_photos/' + employee.Photo) if employee.Photo else url_for('static', filename='default_profile.png') }}"
+                                   data-id="{{ employee.Employee_Id }}"
+                                   data-first-name="{{ employee.First_Name }}"
+                                   data-last-name="{{ employee.Last_Name }}"
+                                   data-email="{{ employee.Email }}"
+                                   data-designation="{{ employee.Designation }}"
+                                   data-department="{{ employee.Department }}"
+                                   data-company="{{ employee.Company }}"
+                                   data-reporting-manager="{{ employee.ReportingManager }}"
+                                   data-phone="{{ employee.PhoneNumber }}"
+                                   data-dob="{{ employee.DateOfBirth }}"
+                                   data-doj="{{ employee.DateOfJoining }}"
+                                   data-dol="{{ employee.DateOfLeave }}"
+                                   data-status="{{ 'Active' if employee.Status else 'Inactive' }}"
+                                   data-address="{{ employee.Address }}"></i>
+                                <a href="{{ url_for('edit_employee', employee_id=employee.Employee_Id) }}">
+                                    <i class="fas fa-edit text-success"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    </div>
+
+    <!-- Employee Details Modal -->
+    <div class="modal fade" id="employeeDetailsModal" tabindex="-1" role="dialog" aria-labelledby="employeeDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="employeeDetailsModalLabel">Employee Details</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center">
+                            <img id="modalEmployeePhoto" src="" alt="Profile Picture" class="img-fluid mb-3">
+                        </div>
+                        <div class="col-md-8">
+                            <table class="table">
+                                <tr>
+                                    <th>ID</th>
+                                    <td id="modalEmployeeId"></td>
+                                </tr>
+                                <tr>
+                                    <th>First Name</th>
+                                    <td id="modalFirstName"></td>
+                                </tr>
+                                <tr>
+                                    <th>Last Name</th>
+                                    <td id="modalLastName"></td>
+                                </tr>
+                                <tr>
+                                    <th>Email</th>
+                                    <td id="modalEmail"></td>
+                                </tr>
+                                <tr>
+                                    <th>Designation</th>
+                                    <td id="modalDesignation"></td>
+                                </tr>
+                                <tr>
+                                    <th>Department</th>
+                                    <td id="modalDepartment"></td>
+                                </tr>
+                                <tr>
+                                    <th>Company</th>
+                                    <td id="modalCompany"></td>
+                                </tr>
+                                <tr>
+                                    <th>Reporting Manager</th>
+                                    <td id="modalReportingManager"></td>
+                                </tr>
+                                <tr>
+                                    <th>Phone Number</th>
+                                    <td id="modalPhoneNumber"></td>
+                                </tr>
+                                <tr>
+                                    <th>Date of Birth</th>
+                                    <td id="modalDateOfBirth"></td>
+                                </tr>
+                                <tr>
+                                    <th>Date of Joining</th>
+                                    <td id="modalDateOfJoining"></td>
+                                </tr>
+                                <tr>
+                                    <th>Date of Leave</th>
+                                    <td id="modalDateOfLeave"></td>
+                                </tr>
+                                <tr>
+                                    <th>Status</th>
+                                    <td id="modalStatus"></td>
+                                </tr>
+                                <tr>
+                                    <th>Address</th>
+                                    <td id="modalAddress"></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a href="{{ url_for('register_employee') }}" class="btn btn-success">Register New Employee</a>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-back">Back to Dashboard</a>
+
+    <!-- Required scripts -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.3/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+    $(document).ready(function() {
+        // View employee details in modal
+        $('.view-employee').on('click', function() {
+            // Set photo
+            $('#modalEmployeePhoto').attr('src', $(this).data('photo') || "{{ url_for('static', filename='default_profile.png') }}");
+            
+            // Set other details
+            $('#modalEmployeeId').text($(this).data('id'));
+            $('#modalFirstName').text($(this).data('first-name'));
+            $('#modalLastName').text($(this).data('last-name'));
+            $('#modalEmail').text($(this).data('email'));
+            $('#modalDesignation').text($(this).data('designation'));
+            $('#modalDepartment').text($(this).data('department'));
+            $('#modalCompany').text($(this).data('company'));
+            $('#modalReportingManager').text($(this).data('reporting-manager'));
+            $('#modalPhoneNumber').text($(this).data('phone'));
+            $('#modalDateOfBirth').text($(this).data('dob'));
+            $('#modalDateOfJoining').text($(this).data('doj'));
+            $('#modalDateOfLeave').text($(this).data('dol'));
+            $('#modalStatus').text($(this).data('status'));
+            $('#modalAddress').text($(this).data('address'));
+        });
+    });
+    </script>
+    {% endblock %}
+</body>
+</html>
