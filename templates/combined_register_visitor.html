@@ -443,137 +443,163 @@
             </div>
         </div>
     </div>
-    <table class="table table-bordered mt-3">
-        <thead>
+<table class="table table-bordered mt-3">
+    <thead>
+        <tr>
+            <th>Visitor ID</th>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Visit Date</th>
+            <th>Visit Purpose</th>
+            <th>Host Name</th>
+            <th>Check-In Time</th>
+            <th>Check-Out Time</th>
+            <th>Status</th>
+            <th>Zone Status</th>
+            <th>Visitor Photo</th>
+            <th>Actions</th>
+            <th>View Details</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for visitor in visitors %}
             <tr>
-                <th>Visitor ID</th>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Visit Date</th>
-                <th>Visit Purpose</th>
-                <th>Host Name</th>
-                <th>Check-In Time</th>
-                <th>Check-Out Time</th>
-                <th>Status</th>
-                <th>Zone Status</th>
-                <th>Visitor Photo</th>
-                <th>Actions</th>
-                <th>View Details</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for visitor in visitors %}
-                <tr>
-                    <td>{{ visitor.VisitorId }}</td>
-                    <td>{{ visitor.FirstName }} {{ visitor.LastName }}</td>
-                    <td>{{ visitor.Phone }}</td>
-                    <td id="visit-date-{{ visitor.VisitorId }}" class="visit-date">{{ visitor.VisitDate }}</td>
-                    <td>{{ visitor.VisitPurpose }}</td>
-                    <td>{{ visitor.HostName }}</td>
-                    <td id="checkin-time-{{ visitor.VisitorId }}">{{ visitor.CheckInTime }}
-                        <input type="checkbox" id="checkin-{{ visitor.VisitorId }}" 
-                               onchange="checkInChange(this, '{{ visitor.VisitorId }}')" 
-                               {% if visitor.CheckInTime %} checked disabled {% endif %}
-                               class="checkin-checkbox" disabled>
-                    </td>
-                    <td id="checkout-time-{{ visitor.VisitorId }}">{{ visitor.CheckOutTime }}</td>
-                    <td id="status-{{ visitor.VisitorId }}" class="status-{{ visitor.VisitorStatus.lower() }}">{{ visitor.VisitorStatus }}</td>
-                    <td id="zone-status-{{ visitor.VisitorId }}">{{ visitor.ZoneStatus }}</td>
-                    <td>
-                        <div class="photo-container">
-                            <input type="file" 
-                                   accept="image/*" 
-                                   capture="environment"
-                                   id="camera-{{ visitor.VisitorId }}" 
-                                   class="camera-button"
-                                   onchange="uploadPhoto(event, '{{ visitor.VisitorId }}', '{{ visitor.AppointmentId }}', '{{ visitor.ZoneStatus }}')"
-                                   style="display:none;" 
-                                   disabled>
-                            {% if visitor.VisitorPhoto %}
-                                <img src="{{ url_for('static', filename='visitor_photos/' + visitor.VisitorPhoto) }}" 
-                                     alt="Visitor Photo" class="photo-preview" id="preview-{{ visitor.VisitorId }}">
-                            {% else %}
-                                <div class="no-photo">No Photo</div>
-                            {% endif %}
-                            <button type="button" class="btn-take-photo" id="take-photo-btn-{{ visitor.VisitorId }}" 
-                                    onclick="document.getElementById('camera-{{ visitor.VisitorId }}').click();" 
-                                    style="display:none;" disabled>
-                                Take Photo
-                            </button>
-                        </div>
-                    </td>
-                    <td>
-                        <div class="d-flex flex-column gap-2">
-                            <div class="action-group photo-upload" id="photo-upload-group-{{ visitor.VisitorId }}">
-                                <div class="d-flex flex-column gap-2">
-                                    <input type="file" accept="image/*" capture="environment" 
-                                           id="camera-{{ visitor.VisitorId }}" class="camera-button d-none" 
-                                           onchange="uploadPhoto(event, '{{ visitor.VisitorId }}', '{{ visitor.AppointmentId }}')">
-                                    <button type="button" class="btn btn-primary btn-sm w-100"
-                                            onclick="document.getElementById('camera-{{ visitor.VisitorId }}').click();"
-                                            {% if visitor.VisitorPhoto %} style="display: none;" {% endif %}>
-                                        Upload Photo
-                                    </button>
-                                    <button class="btn btn-warning btn-sm request-red-zone w-100" 
-                                            data-bs-toggle="modal" 
-                                            data-bs-target="#redZoneModal"
-                                            data-visitor-id="{{ visitor.VisitorId }}"
-                                            data-visitor-name="{{ visitor.FirstName }} {{ visitor.LastName }}"
-                                            data-visit-purpose="{{ visitor.VisitPurpose }}"
-                                            title="Request Red Zone Access"
-                                            id="red-zone-btn-{{ visitor.VisitorId }}"
-                                            style="display: none;">
-                                        <i class="fas fa-exclamation-triangle me-1"></i> Request Red Zone
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="action-group checkin-redzone" id="checkin-group-{{ visitor.VisitorId }}"
-                                 {% if not visitor.VisitorPhoto or visitor.CheckInTime %} style="display: none;" {% endif %}>
-                                <div class="d-flex gap-2">
-                                    <input type="checkbox" id="checkin-{{ visitor.VisitorId }}" 
-                                           onchange="checkInChange(this, '{{ visitor.VisitorId }}')" 
-                                           {% if visitor.CheckInTime %} checked disabled {% endif %}
-                                           class="btn-check" autocomplete="off">
-                                    <label class="btn btn-outline-primary btn-sm flex-grow-1" 
-                                           for="checkin-{{ visitor.VisitorId }}">Check In</label>
-                                </div>
-                            </div>
-                            
-                            <div class="action-group checkout" id="checkout-group-{{ visitor.VisitorId }}"
-                                 {% if not visitor.CheckInTime or visitor.CheckOutTime %} style="display: none;" {% endif %}>
-                                <button class="btn btn-danger btn-sm w-100 toggle-checkout" 
-                                        id="checkout-btn-{{ visitor.VisitorId }}"
-                                        data-visitor-id="{{ visitor.VisitorId }}">
-                                    Check Out
+                <td>{{ visitor.VisitorId }}</td>
+                <td>{{ visitor.FirstName }} {{ visitor.LastName }}</td>
+                <td>{{ visitor.Phone }}</td>
+                <td id="visit-date-{{ visitor.VisitorId }}" class="visit-date">{{ visitor.VisitDate }}</td>
+                <td>{{ visitor.VisitPurpose }}</td>
+                <td>{{ visitor.HostName }}</td>
+                <td id="checkin-time-{{ visitor.VisitorId }}">{{ visitor.CheckInTime }}
+                    <input type="checkbox" id="checkin-{{ visitor.VisitorId }}" 
+                           onchange="checkInChange(this, '{{ visitor.VisitorId }}')" 
+                           {% if visitor.CheckInTime %} checked disabled {% endif %}
+                           class="checkin-checkbox" disabled>
+                </td>
+                <td id="checkout-time-{{ visitor.VisitorId }}">{{ visitor.CheckOutTime }}</td>
+                <td id="status-{{ visitor.VisitorId }}" class="status-{{ visitor.VisitorStatus.lower() }}">{{ visitor.VisitorStatus }}</td>
+                <td id="zone-status-{{ visitor.VisitorId }}">{{ visitor.ZoneStatus }}</td>
+                <td>
+                    <div class="photo-container">
+                        <input type="file" 
+                               accept="image/*" 
+                               capture="environment"
+                               id="camera-{{ visitor.VisitorId }}" 
+                               class="camera-button"
+                               onchange="uploadPhoto(event, '{{ visitor.VisitorId }}', '{{ visitor.AppointmentId }}', '{{ visitor.ZoneStatus }}')"
+                               style="display:none;" 
+                               disabled>
+                        {% if visitor.VisitorPhoto %}
+                            <img src="{{ url_for('static', filename='visitor_photos/' + visitor.VisitorPhoto) }}" 
+                                 alt="Visitor Photo" class="photo-preview" id="preview-{{ visitor.VisitorId }}">
+                        {% else %}
+                            <div class="no-photo">No Photo</div>
+                        {% endif %}
+                        <button type="button" class="btn-take-photo" id="take-photo-btn-{{ visitor.VisitorId }}" 
+                                onclick="document.getElementById('camera-{{ visitor.VisitorId }}').click();" 
+                                style="display:none;" disabled>
+                            Take Photo
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    <div class="d-flex flex-column gap-2">
+                        <div class="action-group photo-upload" id="photo-upload-group-{{ visitor.VisitorId }}">
+                            <div class="d-flex flex-column gap-2">
+                                <input type="file" accept="image/*" capture="environment" 
+                                       id="camera-{{ visitor.VisitorId }}" class="camera-button d-none" 
+                                       onchange="uploadPhoto(event, '{{ visitor.VisitorId }}', '{{ visitor.AppointmentId }}')">
+                                <button type="button" class="btn btn-primary btn-sm w-100"
+                                        onclick="document.getElementById('camera-{{ visitor.VisitorId }}').click();"
+                                        {% if visitor.VisitorPhoto %} style="display: none;" {% endif %}>
+                                    Upload Photo
+                                </button>
+                                <button class="btn btn-warning btn-sm request-red-zone w-100" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#redZoneModal"
+                                        data-visitor-id="{{ visitor.VisitorId }}"
+                                        data-visitor-name="{{ visitor.FirstName }} {{ visitor.LastName }}"
+                                        data-visit-purpose="{{ visitor.VisitPurpose }}"
+                                        title="Request Red Zone Access"
+                                        id="red-zone-btn-{{ visitor.VisitorId }}"
+                                        style="display: none;">
+                                    <i class="fas fa-exclamation-triangle me-1"></i> Request Red Zone
                                 </button>
                             </div>
-                            
-                            <div class="action-group completed" id="completed-group-{{ visitor.VisitorId }}"
-                                 {% if not visitor.CheckOutTime %} style="display: none;" {% endif %}>
-                                <span class="badge bg-success">Visit Completed</span>
+                        </div>
+                        
+                        <div class="action-group checkin-redzone" id="checkin-group-{{ visitor.VisitorId }}"
+                             {% if not visitor.VisitorPhoto or visitor.CheckInTime %} style="display: none;" {% endif %}>
+                            <div class="d-flex gap-2">
+                                <input type="checkbox" id="checkin-{{ visitor.VisitorId }}" 
+                                       onchange="checkInChange(this, '{{ visitor.VisitorId }}')" 
+                                       {% if visitor.CheckInTime %} checked disabled {% endif %}
+                                       class="btn-check" autocomplete="off">
+                                <label class="btn btn-outline-primary btn-sm flex-grow-1" 
+                                       for="checkin-{{ visitor.VisitorId }}">Check In</label>
                             </div>
                         </div>
-                    </td>
-                    <td>
-                        <div class="d-flex gap-2">
-                            <a href="{{ url_for('edit_visitor', visitor_id=visitor.VisitorId) }}" class="btn btn-warning btn-sm">Update</a>
-                            <a href="{{ url_for('view_model_visitor', visitor_id=visitor.VisitorId, appointment_id=visitor.AppointmentId) }}" 
-                               class="btn btn-primary btn-sm">
-                                View Details
-                            </a>
-                            <button class="btn btn-primary btn-sm" 
-                                    id="print-btn-{{ visitor.VisitorId }}" 
-                                    {% if not visitor.CheckInTime %} disabled {% endif %} 
-                                    onclick="printVisitorDetails('{{ visitor.VisitorId }}')">
-                                <i class="fas fa-print"></i> Print
+                        
+                        <!-- Out Time Photo Button -->
+                        <div class="action-group out-time-photo" id="out-time-photo-group-{{ visitor.VisitorId }}"
+                             {% if not visitor.CheckInTime or visitor.CheckOutTime or visitor.VisitorStatus == 'Is Gone' %} style="display: none;" {% endif %}>
+                            <input type="file" 
+                                   accept="image/*" 
+                                   capture="environment" 
+                                   id="out-time-camera-{{ visitor.VisitorId }}" 
+                                   class="camera-button d-none" 
+                                   onchange="uploadOutTimePhoto(event, '{{ visitor.VisitorId }}', '{{ visitor.AppointmentId }}')"
+                                   {% if visitor.OutTimePhoto %} disabled {% endif %}>
+                            <button type="button" 
+                                    class="btn btn-info btn-sm w-100" 
+                                    id="take-out-photo-btn-{{ visitor.VisitorId }}"
+                                    onclick="document.getElementById('out-time-camera-{{ visitor.VisitorId }}').click();"
+                                    {% if visitor.OutTimePhoto %} disabled {% endif %}>
+                                Take Out Time Photo
+                            </button>
+                            <!-- Hidden marker for out time photo existence -->
+                            {% if visitor.OutTimePhoto %}
+                                <div id="out-time-preview-{{ visitor.VisitorId }}" class="d-none" data-photo-uploaded="true"></div>
+                            {% else %}
+                                <div id="out-time-preview-{{ visitor.VisitorId }}" class="d-none" data-photo-uploaded="false"></div>
+                            {% endif %}
+                        </div>
+                         
+                        <div class="action-group checkout" id="checkout-group-{{ visitor.VisitorId }}"
+                             {% if not visitor.CheckInTime or visitor.CheckOutTime %} style="display: none;" {% endif %}>
+                            <button class="btn btn-danger btn-sm w-100 toggle-checkout" 
+                                    id="checkout-btn-{{ visitor.VisitorId }}"
+                                    data-visitor-id="{{ visitor.VisitorId }}"
+                                    {% if not visitor.OutTimePhoto and not visitor.allowCheckoutWithoutPhoto %} disabled {% endif %}>
+                                Check Out
                             </button>
                         </div>
-                    </td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                        
+                        <div class="action-group completed" id="completed-group-{{ visitor.VisitorId }}"
+                             {% if not visitor.CheckOutTime %} style="display: none;" {% endif %}>
+                            <span class="badge bg-success">Visit Completed</span>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('edit_visitor', visitor_id=visitor.VisitorId) }}" class="btn btn-warning btn-sm">Update</a>
+                        <a href="{{ url_for('view_model_visitor', visitor_id=visitor.VisitorId, appointment_id=visitor.AppointmentId) }}" 
+                           class="btn btn-primary btn-sm">
+                            View Details
+                        </a>
+                        <button class="btn btn-primary btn-sm" 
+                                id="print-btn-{{ visitor.VisitorId }}" 
+                                {% if not visitor.CheckInTime %} disabled {% endif %} 
+                                onclick="printVisitorDetails('{{ visitor.VisitorId }}')">
+                            <i class="fas fa-print"></i> Print
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
     
     <!-- Red Zone Modal -->
     <div class="modal fade" id="redZoneModal" tabindex="-1" aria-labelledby="redZoneModalLabel" aria-hidden="true">
