@@ -41,10 +41,10 @@ mail = Mail(app)
 def get_db_connection():
     try:
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'localhost'),
-            database=os.getenv('DB_NAME', 'VisitorManagement'),
-            user=os.getenv('DB_USER', 'postgres'),
-            password=os.getenv('DB_PASSWORD', 'Khushi.12')
+            host=os.getenv('DB_HOST', 'dpg-d0i7boemcj7s739pc9fg-a'),
+            database=os.getenv('DB_NAME', 'visitormanagement_kgk3'),
+            user=os.getenv('DB_USER', 'visitormanagement_user'),
+            password=os.getenv('DB_PASSWORD', 'Tkw2W0FfCfzG9LPf0kiIZX9THJfsvrMm')
         )
     except Exception as e:
         logging.error(f'Database connection error: {e}')
