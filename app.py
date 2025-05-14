@@ -22,7 +22,6 @@ from flask_wtf import FlaskForm
 from wtforms import BooleanField, SubmitField
 from functools import wraps
 from wtforms.csrf.core import CSRF
-
 load_dotenv()
 
 app = Flask(__name__)
@@ -42,11 +41,10 @@ mail = Mail(app)
 def get_db_connection():
     try:
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'dpg-d0cvgegdl3ps73ekdsi0-a'),
-            database=os.getenv('DB_NAME', 'visitormanagement'),
-            user=os.getenv('DB_USER', 'visitormanagement_user'),
-            password=os.getenv('DB_PASSWORD', 'YeILqdZz6ZY6u4q0rUlBWKlRYHhTR5wF'),
-            port=os.getenv('DB_PORT',5432)
+            host=os.getenv('DB_HOST', 'localhost'),
+            database=os.getenv('DB_NAME', 'VisitorManagement'),
+            user=os.getenv('DB_USER', 'postgres'),
+            password=os.getenv('DB_PASSWORD', 'Khushi.12')
         )
     except Exception as e:
         logging.error(f'Database connection error: {e}')
@@ -283,6 +281,73 @@ def register_employee():
                         %s, %s, %s, %s, %s, %s
                     )
                 """, (employee_id, hashed_password, False, *role_access))
+
+                # IMPORTANT: Copy role-based company access settings to the new user
+                
+                # 1. Copy User View Company Access settings
+                cur.execute("""
+                    SELECT Company FROM RoleUserViewCompanyAccess
+                    WHERE company_id = %s AND role_id = %s
+                """, (company_id, role_id))
+                user_view_companies = [row[0] for row in cur.fetchall()]
+                
+                for company in user_view_companies:
+                    cur.execute("""
+                        INSERT INTO UserUserViewCompanyAccess (access_user_id, Company)
+                        VALUES (%s, %s)
+                    """, (employee_id, company))
+                
+                # 2. Copy Employee View Company Access settings
+                cur.execute("""
+                    SELECT Company FROM RoleEmployeeViewCompanyAccess
+                    WHERE company_id = %s AND role_id = %s
+                """, (company_id, role_id))
+                employee_view_companies = [row[0] for row in cur.fetchall()]
+                
+                for company in employee_view_companies:
+                    cur.execute("""
+                        INSERT INTO UserEmployeeViewCompanyAccess (access_user_id, Company)
+                        VALUES (%s, %s)
+                    """, (employee_id, company))
+                
+                # 3. Copy Visitor View Company Access settings
+                cur.execute("""
+                    SELECT Company FROM RoleVisitorViewCompanyAccess
+                    WHERE company_id = %s AND role_id = %s
+                """, (company_id, role_id))
+                visitor_view_companies = [row[0] for row in cur.fetchall()]
+                
+                for company in visitor_view_companies:
+                    cur.execute("""
+                        INSERT INTO UserVisitorViewCompanyAccess (access_user_id, Company)
+                        VALUES (%s, %s)
+                    """, (employee_id, company))
+                
+                # 4. Copy Combined Register Company Access settings
+                cur.execute("""
+                    SELECT Company FROM RoleCombinedRegisterCompanyAccess
+                    WHERE company_id = %s AND role_id = %s
+                """, (company_id, role_id))
+                combined_register_companies = [row[0] for row in cur.fetchall()]
+                
+                for company in combined_register_companies:
+                    cur.execute("""
+                        INSERT INTO UserCombinedRegisterCompanyAccess (access_user_id, Company)
+                        VALUES (%s, %s)
+                    """, (employee_id, company))
+                
+                # 5. Copy Zone Request Company Access settings
+                cur.execute("""
+                    SELECT Company FROM RoleZoneRequestCompanyAccess
+                    WHERE company_id = %s AND role_id = %s
+                """, (company_id, role_id))
+                zone_request_companies = [row[0] for row in cur.fetchall()]
+                
+                for company in zone_request_companies:
+                    cur.execute("""
+                        INSERT INTO UserZoneRequestCompanyAccess (access_user_id, Company)
+                        VALUES (%s, %s)
+                    """, (employee_id, company))
 
                 conn.commit()
 
@@ -1444,6 +1509,115 @@ def dashboard():
         return redirect(url_for('login'))
 
 
+@app.route('/get_role_user_view_companies', methods=['GET'])
+def get_role_user_view_companies():
+    company_id = request.args.get('companyId')
+    role_id = request.args.get('roleId')
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Get all available companies first
+            cursor.execute("""
+                SELECT DISTINCT CompanyName 
+                FROM CompanyDetails 
+                ORDER BY CompanyName
+            """)
+            all_companies = [row[0] for row in cursor.fetchall()]
+            
+            # Then get role's selected companies for user view access
+            cursor.execute("""
+                SELECT Company 
+                FROM RoleUserViewCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            role_companies = [row[0] for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'companies': all_companies,
+                'selectedCompanies': role_companies
+            })
+            
+    except Exception as e:
+        logging.error(f'Error getting role user view companies: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+# Add a route to update role user view company access
+@app.route('/update_role_user_view_company_access', methods=['POST'])
+def update_role_user_view_company_access():
+    company_id = request.form.get('companyId')
+    role_id = request.form.get('roleId')
+    companies = json.loads(request.form.get('companies', '[]'))
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # First remove existing user view company access records for this role
+            cursor.execute("""
+                DELETE FROM RoleUserViewCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            
+            # Insert new user view company access records
+            for company in companies:
+                cursor.execute("""
+                    INSERT INTO RoleUserViewCompanyAccess (company_id, role_id, Company) 
+                    VALUES (%s, %s, %s)
+                """, (company_id, role_id, company))
+            
+            # Get all users with this role in this company
+            cursor.execute("""
+                SELECT employee_id FROM EmployeeRoles
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            affected_users = [row[0] for row in cursor.fetchall()]
+            
+            # Update UserUserViewCompanyAccess for all affected users
+            for user_id in affected_users:
+                # First remove existing user view access for this user
+                cursor.execute("""
+                    DELETE FROM UserUserViewCompanyAccess
+                    WHERE access_user_id = %s
+                """, (user_id,))
+                
+                # Then insert new user view access for each company
+                for company in companies:
+                    cursor.execute("""
+                        INSERT INTO UserUserViewCompanyAccess (access_user_id, Company)
+                        VALUES (%s, %s)
+                    """, (user_id, company))
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'message': 'User view company access updated successfully',
+                'affected_users': len(affected_users)
+            })
+            
+    except Exception as e:
+        conn.rollback()
+        logging.error(f'Error updating user view company access: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+        
 @app.route('/users', methods=['GET'])
 def view_users():
     user_id = session.get('user_id')
@@ -1489,17 +1663,38 @@ def view_users():
                 flash('You do not have permission to view users.', 'danger')
                 return redirect(url_for('dashboard'))
 
-            # Fetch all users
+            # Fetch accessible companies for this user
             cur.execute("""
-                SELECT Id, UserId, ShowForgetPassword, CanViewEmployees,
-                       CanRegisterEmployee, CanRegisterVisitor, CanRegisterCombined,
-                       CanViewVisitors, CanViewUsers, CanAccessZoneRequests,
-                       CanAccessVisitorSettings, CanAddCompany, CanAddDepartment,
-                       CanAddDesignation, CanAddRole, CanAddZone, CanAddZoneArea,
-                       CanQuickRegister, CanAccessRoleAccess
-                FROM Users
-                ORDER BY UserId
-            """)
+                SELECT Company FROM UserUserViewCompanyAccess
+                WHERE access_user_id = %s
+            """, (user_id,))
+            accessible_companies = [row[0] for row in cur.fetchall()]
+            
+            # If the user has company restrictions, apply them
+            user_query = """
+                SELECT u.Id, u.UserId, u.ShowForgetPassword, u.CanViewEmployees,
+                       u.CanRegisterEmployee, u.CanRegisterVisitor, u.CanRegisterCombined,
+                       u.CanViewVisitors, u.CanViewUsers, u.CanAccessZoneRequests,
+                       u.CanAccessVisitorSettings, u.CanAddCompany, u.CanAddDepartment,
+                       u.CanAddDesignation, u.CanAddRole, u.CanAddZone, u.CanAddZoneArea,
+                       u.CanQuickRegister, u.CanAccessRoleAccess
+                FROM Users u
+                JOIN Employee e ON u.UserId = e.Employee_Id
+                JOIN CompanyDetails cd ON e.Company = cd.CompanyID::text
+            """
+            
+            query_params = []
+            if accessible_companies:
+                user_query += " WHERE cd.CompanyName IN %s"
+                query_params.append(tuple(accessible_companies))
+            
+            user_query += " ORDER BY u.UserId"
+            
+            if query_params:
+                cur.execute(user_query, query_params)
+            else:
+                cur.execute(user_query)
+                
             users = cur.fetchall()
 
             # Fetch all company names
@@ -1510,6 +1705,19 @@ def view_users():
             cur.execute("SELECT Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
             photo_result = cur.fetchone()
             photo_filename = photo_result[0] if photo_result else None
+
+            # Get company information for each user from the Employee table
+            user_companies = {}
+            for user_data in users:
+                current_user_id = user_data[1]  # UserId
+                cur.execute("""
+                    SELECT e.Company, cd.CompanyName 
+                    FROM Employee e
+                    JOIN CompanyDetails cd ON e.Company = cd.CompanyID::text
+                    WHERE e.Employee_Id = %s
+                """, (current_user_id,))
+                company_info = cur.fetchone()
+                user_companies[current_user_id] = company_info[1] if company_info else "Not Assigned"
 
             # Convert users to list of dictionaries for easier template handling
             user_list = []
@@ -1533,7 +1741,8 @@ def view_users():
                     'CanAddZone': user[15],
                     'CanAddZoneArea': user[16],
                     'CanQuickRegister': user[17],
-                    'CanAccessRoleAccess': user[18]
+                    'CanAccessRoleAccess': user[18],
+                    'Company': user_companies.get(user[1], "Not Assigned")  # Add company
                 }
                 user_list.append(user_dict)
 
@@ -1568,6 +1777,110 @@ def view_users():
     finally:
         if conn:
             conn.close()
+            
+@app.route('/get_role_visitor_view_companies', methods=['GET'])
+def get_role_visitor_view_companies():
+    company_id = request.args.get('companyId')
+    role_id = request.args.get('roleId')
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Get all available companies first
+            cursor.execute("""
+                SELECT DISTINCT CompanyName 
+                FROM CompanyDetails 
+                ORDER BY CompanyName
+            """)
+            all_companies = [row[0] for row in cursor.fetchall()]
+            
+            # Then get role's selected companies for view visitor access
+            cursor.execute("""
+                SELECT Company 
+                FROM RoleVisitorViewCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            role_companies = [row[0] for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'companies': all_companies,
+                'selectedCompanies': role_companies
+            })
+            
+    except Exception as e:
+        logging.error(f'Error getting role visitor view companies: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+@app.route('/update_role_visitor_view_company_access', methods=['POST'])
+def update_role_visitor_view_company_access():
+    company_id = request.form.get('companyId')
+    role_id = request.form.get('roleId')
+    companies = json.loads(request.form.get('companies', '[]'))
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # First remove existing view visitor company access records for this role
+            cursor.execute("""
+                DELETE FROM RoleVisitorViewCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            
+            # Insert new view visitor company access records
+            for company in companies:
+                cursor.execute("""
+                    INSERT INTO RoleVisitorViewCompanyAccess (company_id, role_id, Company) 
+                    VALUES (%s, %s, %s)
+                """, (company_id, role_id, company))
+            
+            # Update all users with this role in this company
+            cursor.execute("""
+                WITH role_companies AS (
+                    SELECT Company FROM RoleVisitorViewCompanyAccess
+                    WHERE company_id = %s AND role_id = %s
+                )
+                DELETE FROM UserVisitorViewCompanyAccess
+                WHERE access_user_id IN (
+                    SELECT employee_id FROM EmployeeRoles
+                    WHERE company_id = %s AND role_id = %s
+                )
+            """, (company_id, role_id, company_id, role_id))
+            
+            for company in companies:
+                cursor.execute("""
+                    INSERT INTO UserVisitorViewCompanyAccess (access_user_id, Company)
+                    SELECT employee_id, %s
+                    FROM EmployeeRoles
+                    WHERE company_id = %s AND role_id = %s
+                """, (company, company_id, role_id))
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'message': 'View Visitor company access updated successfully'
+            })
+            
+    except Exception as e:
+        conn.rollback()
+        logging.error(f'Error updating view visitor company access: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
 
 @app.route('/get_company_roles/<int:company_id>')
 def get_company_roles(company_id):
@@ -1592,6 +1905,109 @@ def get_company_roles(company_id):
     finally:
         conn.close()
 
+@app.route('/get_role_visitor_companies', methods=['GET'])
+def get_role_visitor_companies():
+    company_id = request.args.get('companyId')
+    role_id = request.args.get('roleId')
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Get all available companies first
+            cursor.execute("""
+                SELECT DISTINCT CompanyName 
+                FROM CompanyDetails 
+                ORDER BY CompanyName
+            """)
+            all_companies = [row[0] for row in cursor.fetchall()]
+            
+            # Then get role's selected companies for visitor access
+            cursor.execute("""
+                SELECT Company 
+                FROM RoleVisitorCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            role_companies = [row[0] for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'companies': all_companies,
+                'selectedCompanies': role_companies
+            })
+            
+    except Exception as e:
+        logging.error(f'Error getting role visitor companies: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/update_role_visitor_company_access', methods=['POST'])
+def update_role_visitor_company_access():
+    company_id = request.form.get('companyId')
+    role_id = request.form.get('roleId')
+    companies = json.loads(request.form.get('companies', '[]'))
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # First remove existing visitor company access records for this role
+            cursor.execute("""
+                DELETE FROM RoleVisitorCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            
+            # Insert new visitor company access records
+            for company in companies:
+                cursor.execute("""
+                    INSERT INTO RoleVisitorCompanyAccess (company_id, role_id, Company) 
+                    VALUES (%s, %s, %s)
+                """, (company_id, role_id, company))
+            
+            # Update all users with this role in this company
+            cursor.execute("""
+                DELETE FROM UserVisitorCompanyAccess
+                WHERE access_user_id IN (
+                    SELECT employee_id FROM EmployeeRoles
+                    WHERE company_id = %s AND role_id = %s
+                )
+            """, (company_id, role_id))
+            
+            for company in companies:
+                cursor.execute("""
+                    INSERT INTO UserVisitorCompanyAccess (access_user_id, Company)
+                    SELECT employee_id, %s
+                    FROM EmployeeRoles
+                    WHERE company_id = %s AND role_id = %s
+                """, (company, company_id, role_id))
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'message': 'Visitor company access updated successfully'
+            })
+            
+    except Exception as e:
+        conn.rollback()
+        logging.error(f'Error updating visitor company access: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+
+# Add this to the role_access route to handle company selection for role visitor access
 @app.route('/role_access', methods=['GET', 'POST'])
 def role_access():
     user_id = session.get('user_id')
@@ -1637,6 +2053,81 @@ def role_access():
             cur.execute("SELECT role_id, role_name FROM Role ORDER BY role_name")
             roles = cur.fetchall()
 
+            # Get company_id and role_id from query parameters
+            company_id = request.args.get('company_id')
+            role_id = request.args.get('role_id')
+
+            # Handle GET request with company_id and role_id for fetching permissions
+            if request.method == 'GET' and company_id and role_id:
+                # Fetch user view company access
+                cur.execute("""
+                    SELECT Company FROM RoleUserViewCompanyAccess 
+                    WHERE company_id = %s AND role_id = %s
+                """, (company_id, role_id))
+                user_view_companies = [row[0] for row in cur.fetchall()]
+                
+                # Fetch existing permissions
+                cur.execute("""
+                    SELECT 
+                        ShowForgetPassword, CanViewEmployees,
+                        CanRegisterEmployee, CanRegisterVisitor,
+                        CanRegisterCombined, CanViewVisitors,
+                        CanViewUsers, CanAccessZoneRequests,
+                        CanAccessVisitorSettings, CanAddCompany,
+                        CanAddDepartment, CanAddDesignation,
+                        CanAddRole, CanAddZone,
+                        CanAddZoneArea, CanQuickRegister,
+                        CanAccessRoleAccess
+                    FROM RoleAccess
+                    WHERE company_id = %s AND role_id = %s
+                """, (company_id, role_id))
+                role_access = cur.fetchone()
+                
+                if role_access:
+                    # Return JSON response with permissions
+                    return jsonify({
+                        'showForgetPassword': role_access[0],
+                        'canViewEmployees': role_access[1],
+                        'canRegisterEmployee': role_access[2],
+                        'canRegisterVisitor': role_access[3],
+                        'canRegisterCombined': role_access[4],
+                        'canViewVisitors': role_access[5],
+                        'canViewUsers': role_access[6],
+                        'canAccessZoneRequests': role_access[7],
+                        'canAccessVisitorSettings': role_access[8],
+                        'canAddCompany': role_access[9],
+                        'canAddDepartment': role_access[10],
+                        'canAddDesignation': role_access[11],
+                        'canAddRole': role_access[12],
+                        'canAddZone': role_access[13],
+                        'canAddZoneArea': role_access[14],
+                        'canQuickRegister': role_access[15],
+                        'canAccessRoleAccess': role_access[16],
+                        'userViewCompanies': user_view_companies
+                    })
+                else:
+                    # Return empty permissions if not found
+                    return jsonify({
+                        'showForgetPassword': False,
+                        'canViewEmployees': False,
+                        'canRegisterEmployee': False,
+                        'canRegisterVisitor': False,
+                        'canRegisterCombined': False,
+                        'canViewVisitors': False,
+                        'canViewUsers': False,
+                        'canAccessZoneRequests': False,
+                        'canAccessVisitorSettings': False,
+                        'canAddCompany': False,
+                        'canAddDepartment': False,
+                        'canAddDesignation': False,
+                        'canAddRole': False,
+                        'canAddZone': False,
+                        'canAddZoneArea': False,
+                        'canQuickRegister': False,
+                        'canAccessRoleAccess': False,
+                        'userViewCompanies': user_view_companies
+                    })
+
             if request.method == 'POST':
                 data = request.get_json()
                 if not data:
@@ -1672,6 +2163,9 @@ def role_access():
                     'CanAccessRoleAccess': data.get('canAccessRoleAccess') in ['true', 'on', True]
                 }
 
+                # Process user view companies if provided
+                user_view_companies = data.get('userViewCompanies', [])
+                
                 # First update the RoleAccess table
                 update_role_access_query = """
                     INSERT INTO RoleAccess (
@@ -1734,6 +2228,43 @@ def role_access():
 
                 cur.execute(update_role_access_query, role_access_params)
 
+                # Handle user view companies
+                if user_view_companies:
+                    # First clear existing
+                    cur.execute("""
+                        DELETE FROM RoleUserViewCompanyAccess 
+                        WHERE company_id = %s AND role_id = %s
+                    """, (company_id, role_id))
+                    
+                    # Then insert new
+                    for company in user_view_companies:
+                        cur.execute("""
+                            INSERT INTO RoleUserViewCompanyAccess (company_id, role_id, Company)
+                            VALUES (%s, %s, %s)
+                        """, (company_id, role_id, company))
+                    
+                    # Update all users with this role
+                    cur.execute("""
+                        SELECT employee_id FROM EmployeeRoles 
+                        WHERE company_id = %s AND role_id = %s
+                    """, (company_id, role_id))
+                    
+                    affected_users = [row[0] for row in cur.fetchall()]
+                    
+                    for user_id in affected_users:
+                        # Clear existing
+                        cur.execute("""
+                            DELETE FROM UserUserViewCompanyAccess 
+                            WHERE access_user_id = %s
+                        """, (user_id,))
+                        
+                        # Insert new
+                        for company in user_view_companies:
+                            cur.execute("""
+                                INSERT INTO UserUserViewCompanyAccess (access_user_id, Company)
+                                VALUES (%s, %s)
+                            """, (user_id, company))
+
                 # Now update all users who have this role in this company
                 update_users_query = """
                     UPDATE Users u
@@ -1790,6 +2321,10 @@ def role_access():
                     return jsonify({'success': True, 'message': 'Role access and user permissions updated successfully!'})
                 flash('Role access and user permissions updated successfully!', 'success')
 
+            # Fetch all companies for the company selection modal
+            cur.execute("SELECT DISTINCT CompanyName FROM CompanyDetails ORDER BY CompanyName")
+            all_companies = [row[0] for row in cur.fetchall()]
+
             return render_template('role_access.html',
                                 user_id=user[0],
                                 photo_filename=photo_filename,
@@ -1811,7 +2346,8 @@ def role_access():
                                 can_quick_register=user[16],
                                 can_access_role_access=user[17],
                                 companies=companies,
-                                roles=roles)
+                                roles=roles,
+                                all_companies=all_companies)
 
     except Exception as e:
         logging.error(f'Error managing role access: {e}')
@@ -1879,7 +2415,108 @@ def get_role_access_api():
         return jsonify({'error': 'An error occurred while fetching role access'}), 500
     finally:
         conn.close() 
+@app.route('/get_role_register_visitor_companies', methods=['GET'])
+def get_role_register_visitor_companies():
+    company_id = request.args.get('companyId')
+    role_id = request.args.get('roleId')
+    
+    if not company_id or not role_id:
+        return jsonify({
+            'success': False,
+            'message': 'Company ID and Role ID are required'
+        })
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({
+            'success': False,
+            'message': 'Database connection error'
+        })
+    
+    try:
+        with conn.cursor() as cur:
+            # Get all available companies
+            cur.execute("SELECT DISTINCT CompanyName FROM CompanyDetails ORDER BY CompanyName")
+            all_companies = [row[0] for row in cur.fetchall()]
+            
+            # Get selected companies for this role and permission type
+            cur.execute("""
+                SELECT Company FROM RoleCompanyTypeAccess 
+                WHERE company_id = %s AND role_id = %s AND access_type = 'register_visitor'
+            """, (company_id, role_id))
+            
+            selected_companies = [row[0] for row in cur.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'companies': all_companies,
+                'selectedCompanies': selected_companies
+            })
+    except Exception as e:
+        logging.error(f'Error fetching register visitor companies: {e}')
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while fetching companies'
+        })
+    finally:
+        conn.close()
 
+@app.route('/update_role_register_visitor_company_access', methods=['POST'])
+def update_role_register_visitor_company_access():
+    company_id = request.form.get('companyId')
+    role_id = request.form.get('roleId')
+    companies_json = request.form.get('companies')
+    
+    if not all([company_id, role_id, companies_json]):
+        return jsonify({
+            'success': False,
+            'message': 'Missing required parameters'
+        })
+    
+    try:
+        companies = json.loads(companies_json)
+    except json.JSONDecodeError:
+        return jsonify({
+            'success': False,
+            'message': 'Invalid companies format'
+        })
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({
+            'success': False,
+            'message': 'Database connection error'
+        })
+    
+    try:
+        with conn.cursor() as cur:
+            # Delete existing entries
+            cur.execute("""
+                DELETE FROM RoleCompanyTypeAccess 
+                WHERE company_id = %s AND role_id = %s AND access_type = 'register_visitor'
+            """, (company_id, role_id))
+            
+            # Insert new entries
+            for company_name in companies:
+                cur.execute("""
+                    INSERT INTO RoleCompanyTypeAccess (company_id, role_id, Company, access_type)
+                    VALUES (%s, %s, %s, 'register_visitor')
+                """, (company_id, role_id, company_name))
+            
+            conn.commit()
+            return jsonify({
+                'success': True,
+                'message': 'Company access updated successfully'
+            })
+    except Exception as e:
+        conn.rollback()
+        logging.error(f'Error updating register visitor company access: {e}')
+        return jsonify({
+            'success': False,
+            'message': f'An error occurred: {str(e)}'
+        })
+    finally:
+        conn.close()
 @app.route('/update_user_settings', methods=['GET', 'POST'])
 def update_user_settings():
     user_id = request.form.get('userId') if request.method == 'POST' else request.args.get('userId')
@@ -2036,7 +2673,131 @@ def remove_company_access():
     finally:
         conn.close()
 
-        
+@app.route('/get_user_visitor_companies', methods=['GET'])
+def get_user_visitor_companies():
+    user_id = request.args.get('userId')
+    
+    if not user_id:
+        return jsonify({'success': False, 'message': 'Missing userId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Get all available companies first
+            cursor.execute("""
+                SELECT DISTINCT CompanyName 
+                FROM CompanyDetails 
+                ORDER BY CompanyName
+            """)
+            all_companies = [row[0] for row in cursor.fetchall()]
+            
+            # Then get user's selected companies
+            cursor.execute("""
+                SELECT Company 
+                FROM UserVisitorCompanyAccess 
+                WHERE access_user_id = %s
+            """, (user_id,))
+            user_companies = [row[0] for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'companies': all_companies,
+                'selectedCompanies': user_companies
+            })
+            
+    except Exception as e:
+        logging.error(f'Error getting user visitor companies: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/update_visitor_company_access', methods=['POST'])
+def update_visitor_company_access():
+    user_id = request.form.get('userId')
+    companies = json.loads(request.form.get('companies', '[]'))
+    
+    if not user_id:
+        return jsonify({'success': False, 'message': 'Missing userId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # First remove existing visitor company access records
+            cursor.execute("""
+                DELETE FROM UserVisitorCompanyAccess 
+                WHERE access_user_id = %s
+            """, (user_id,))
+            
+            # Insert new visitor company access records
+            for company in companies:
+                cursor.execute("""
+                    INSERT INTO UserVisitorCompanyAccess (access_user_id, Company) 
+                    VALUES (%s, %s)
+                """, (user_id, company))
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'message': 'Visitor company access updated successfully'
+            })
+            
+    except Exception as e:
+        conn.rollback()
+        logging.error(f'Error updating visitor company access: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/remove_visitor_company_access', methods=['POST'])
+def remove_visitor_company_access():
+    user_id = request.form.get('userId')
+    
+    if not user_id:
+        return jsonify({'success': False, 'message': 'Missing userId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                DELETE FROM UserVisitorCompanyAccess 
+                WHERE access_user_id = %s
+            """, (user_id,))
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'message': 'Visitor company access removed successfully'
+            })
+            
+    except Exception as e:
+        logging.error(f'Error removing visitor company access: {e}')
+        return jsonify({
+            'success': False, 
+            'message': 'An error occurred while removing visitor company access'
+        }), 500
+    finally:
+        conn.close()
+
+# SQL for creating the UserVisitorCompanyAccess table
+"""
+CREATE TABLE IF NOT EXISTS UserVisitorCompanyAccess (
+    id SERIAL PRIMARY KEY,
+    access_user_id VARCHAR(255) NOT NULL,
+    Company VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(access_user_id, Company)
+);
+"""        
 @app.route('/view_employees')
 def view_employees():
     user_id = session.get('user_id')
@@ -2099,9 +2860,23 @@ def view_employees():
                 flash('You do not have permission to view employees.', 'danger')
                 return redirect(url_for('dashboard'))
             
-            # Get the companies this user has access to
+            # Get company access from both tables
+            allowed_company_names = []
+            
+            # Get access from UserEmployeeViewCompanyAccess (first file method)
+            cur.execute("""
+                SELECT Company 
+                FROM UserEmployeeViewCompanyAccess 
+                WHERE access_user_id = %s
+            """, (user_id,))
+            allowed_company_names.extend([row[0] for row in cur.fetchall()])
+            
+            # Get access from UserCompanyAccess (second file method)
             cur.execute("SELECT Company FROM UserCompanyAccess WHERE acessuserid = %s", (user_id,))
-            allowed_company_names = [row[0] for row in cur.fetchall()]
+            allowed_company_names.extend([row[0] for row in cur.fetchall()])
+            
+            # Remove duplicates if any
+            allowed_company_names = list(set(allowed_company_names))
             
             # Convert company names to company IDs
             cur.execute("""
@@ -2206,7 +2981,112 @@ def view_employees():
                          can_add_zone_area=can_add_zone_area,
                          can_quick_register=can_quick_register,
                          can_access_role_access=can_access_role_access)
+@app.route('/get_role_employee_view_companies', methods=['GET'])
+def get_role_employee_view_companies():
+    company_id = request.args.get('companyId')
+    role_id = request.args.get('roleId')
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Get all available companies first
+            cursor.execute("""
+                SELECT DISTINCT CompanyName 
+                FROM CompanyDetails 
+                ORDER BY CompanyName
+            """)
+            all_companies = [row[0] for row in cursor.fetchall()]
+            
+            # Then get role's selected companies for employee view access
+            cursor.execute("""
+                SELECT Company 
+                FROM RoleEmployeeViewCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            role_companies = [row[0] for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'companies': all_companies,
+                'selectedCompanies': role_companies
+            })
+            
+    except Exception as e:
+        logging.error(f'Error getting role employee view companies: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
 
+@app.route('/update_role_employee_view_company_access', methods=['POST'])
+def update_role_employee_view_company_access():
+    company_id = request.form.get('companyId')
+    role_id = request.form.get('roleId')
+    companies = json.loads(request.form.get('companies', '[]'))
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # First remove existing employee view company access records for this role
+            cursor.execute("""
+                DELETE FROM RoleEmployeeViewCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            
+            # Insert new employee view company access records
+            for company in companies:
+                cursor.execute("""
+                    INSERT INTO RoleEmployeeViewCompanyAccess (company_id, role_id, Company) 
+                    VALUES (%s, %s, %s)
+                """, (company_id, role_id, company))
+            
+            # Get all users with this role in this company
+            cursor.execute("""
+                SELECT employee_id FROM EmployeeRoles
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            affected_users = [row[0] for row in cursor.fetchall()]
+            
+            # Update UserEmployeeViewCompanyAccess for all affected users
+            for user_id in affected_users:
+                # First remove existing employee view access for this user
+                cursor.execute("""
+                    DELETE FROM UserEmployeeViewCompanyAccess
+                    WHERE access_user_id = %s
+                """, (user_id,))
+                
+                # Then insert new employee view access for each company
+                for company in companies:
+                    cursor.execute("""
+                        INSERT INTO UserEmployeeViewCompanyAccess (access_user_id, Company)
+                        VALUES (%s, %s)
+                    """, (user_id, company))
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'message': 'Employee view company access updated successfully',
+                'affected_users': len(affected_users)
+            })
+            
+    except Exception as e:
+        conn.rollback()
+        logging.error(f'Error updating employee view company access: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
 @app.route('/get_employee_details/<int:employee_id>')
 def get_employee_details(employee_id):
     conn = get_db_connection()
@@ -2495,15 +3375,56 @@ def register_visitor():
             result = cur.fetchone()
             employee_company = result[0] if result else None
 
-            # Fetch all companies for dropdown with their locations
+            # Get the user's company_id and role_id
             cur.execute("""
-                SELECT 
-                    cd.CompanyID, 
-                    cd.CompanyName,
-                    COALESCE(cd.Address || ', ' || cd.CityLocation || ', ' || cd.StateName, '') AS full_address
-                FROM CompanyDetails cd
-            """)
-            companies = cur.fetchall()
+                SELECT er.company_id, er.role_id FROM EmployeeRoles er
+                WHERE er.employee_id = %s
+            """, (user_id,))
+            role_info = cur.fetchone()
+            
+            if role_info:
+                company_id, role_id = role_info
+                
+                # Check if there are specific companies allowed for this role for registering visitors
+                cur.execute("""
+                    SELECT Company FROM RoleCompanyTypeAccess 
+                    WHERE company_id = %s AND role_id = %s AND access_type = 'register_visitor'
+                """, (company_id, role_id))
+                allowed_companies = [row[0] for row in cur.fetchall()]
+                
+                if allowed_companies:
+                    # Fetch only the allowed companies with their locations
+                    placeholders = ','.join(['%s'] * len(allowed_companies))
+                    query = f"""
+                        SELECT 
+                            cd.CompanyID, 
+                            cd.CompanyName,
+                            COALESCE(cd.Address || ', ' || cd.CityLocation || ', ' || cd.StateName, '') AS full_address
+                        FROM CompanyDetails cd
+                        WHERE cd.CompanyName IN ({placeholders})
+                    """
+                    cur.execute(query, allowed_companies)
+                    companies = cur.fetchall()
+                else:
+                    # If no specific companies are defined, fetch all companies
+                    cur.execute("""
+                        SELECT 
+                            cd.CompanyID, 
+                            cd.CompanyName,
+                            COALESCE(cd.Address || ', ' || cd.CityLocation || ', ' || cd.StateName, '') AS full_address
+                        FROM CompanyDetails cd
+                    """)
+                    companies = cur.fetchall()
+            else:
+                # If no role is assigned, fetch all companies
+                cur.execute("""
+                    SELECT 
+                        cd.CompanyID, 
+                        cd.CompanyName,
+                        COALESCE(cd.Address || ', ' || cd.CityLocation || ', ' || cd.StateName, '') AS full_address
+                    FROM CompanyDetails cd
+                """)
+                companies = cur.fetchall()
 
     except Exception as e:
         logging.error(f'Error fetching user data: {e}')
@@ -2627,8 +3548,14 @@ def register_visitor():
 
                 if existing_visitor:
                     visitor_id = existing_visitor[0]
+                    # Update the host name for existing visitor
+                    cur.execute("""
+                        UPDATE Visitor 
+                        SET HostName = %s 
+                        WHERE VisitorId = %s
+                    """, (data['host_name'], visitor_id))
                 else:
-                    # Create new visitor
+                    # Create new visitor with the new host name
                     cur.execute("""
                         INSERT INTO Visitor (
                             FirstName, LastName, Email, Phone, 
@@ -2679,8 +3606,19 @@ def register_visitor():
                     appointment_id
                 ))
 
-                # Create new zone status
-                if zone_status == 'pending':
+                # FIX: Check for existing zone request for this visitor that has a status of "No Visit"
+                # and delete it before creating a new one
+                cur.execute("""
+                    DELETE FROM Visitor_Zone_Status
+                    WHERE zone_visitor_id = %s 
+                    AND zone_status NOT IN ('Approved', 'Rejected')
+                """, (visitor_id,))
+
+                # Create new zone status - Only create ONE zone request
+                zone_area = data['visit_area'] if data['visit_area'] else data['zone_select']
+                zone_id = data.get('zone_select')
+                
+                if zone_status != 'Green Zone' or data['visit_area']:
                     cur.execute("""
                         INSERT INTO Visitor_Zone_Status (
                             zone_visitor_id, zone_requester_user_id, 
@@ -2690,29 +3628,12 @@ def register_visitor():
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
                         visitor_id, user_id, 
-                        data['visit_area'] or data['zone_select'], 
-                        data['visit_purpose'], 
-                        zone_status, 
-                        created_at,
-                        appointment_id, 
-                        data.get('zone_select') or data.get('visit_area')
-                    ))
-                elif zone_status != 'Green Zone':
-                    cur.execute("""
-                        INSERT INTO Visitor_Zone_Status (
-                            zone_visitor_id, zone_requester_user_id, 
-                            zone_visit_area, zone_visit_purpose, 
-                            zone_status, zone_request_time,
-                            AppointmentId, company_zone_id
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        visitor_id, user_id, 
-                        data['zone_select'] or data['visit_area'],
+                        zone_area,
                         data['visit_purpose'], 
                         zone_status, 
                         created_at,
                         appointment_id,
-                        data.get('zone_select')
+                        zone_id
                     ))
 
                 conn.commit()
@@ -2885,8 +3806,8 @@ def quick_register_visitor():
             'visit_purpose': request.form.get('visit_purpose'),
             'visit_area': request.form.get('visit_area'),
             'host_name': request.form.get('host_name'),
-            'visitor_organization': '',  # Empty for quick register
-            'visitor_location': '',      # Empty for quick register
+            'visitor_organization': request.form.get('visitor_organization', ''),
+            'visitor_location': request.form.get('visitor_location', ''),
             'organization_name': request.form.get('organization_name', employee_company),
             'organization_location': employee_location or 'N/A',
             'zone_select': request.form.get('zone_select')
@@ -2902,7 +3823,7 @@ def quick_register_visitor():
             selected_zone_name = zone_names.get(data['zone_select'])
 
         # Validate required fields
-        required_fields = ['first_name', 'last_name', 'email', 'phone', 'visit_date', 'host_name']
+        required_fields = ['first_name', 'last_name', 'email', 'phone', 'visit_date', 'host_name', 'visitor_organization', 'visitor_location']
         
         for field in required_fields:
             if not data[field]:
@@ -2971,8 +3892,14 @@ def quick_register_visitor():
 
                 if existing_visitor:
                     visitor_id = existing_visitor[0]
+                    # Update existing visitor's host name
+                    cur.execute("""
+                        UPDATE Visitor 
+                        SET HostName = %s 
+                        WHERE VisitorId = %s
+                    """, (data['host_name'], visitor_id))
                 else:
-                    # Create new visitor - without Organization field
+                    # Create new visitor with the new host name
                     cur.execute("""
                         INSERT INTO Visitor (
                             FirstName, LastName, Email, Phone, 
@@ -3645,194 +4572,6 @@ def get_zones():
     finally:
         if conn:
             conn.close()
-
-@app.route('/view_visitors')
-def view_visitors():
-    user_id = session.get('user_id')
-
-    # Check if the user is logged in
-    if not user_id:
-        return redirect(url_for('login'))
-
-    conn = get_db_connection()
-    if conn is None:
-        flash('Database connection error. Please try again later.', 'danger')
-        return redirect(url_for('dashboard'))
-
-    try:
-        with conn.cursor() as cur:
-            # Fetch user information including all necessary settings
-            cur.execute("""
-                SELECT UserId, ShowForgetPassword, CanViewEmployees, 
-                       CanRegisterEmployee, CanRegisterVisitor, 
-                       CanRegisterCombined, CanViewVisitors, CanViewUsers,
-                       CanAccessZoneRequests, CanAccessVisitorSettings,
-                       CanAddCompany, CanAddDepartment, CanAddDesignation,
-                       CanAddRole, CanAddZone, CanAddZoneArea, CanQuickRegister,
-                       CanAccessRoleAccess
-                FROM Users 
-                WHERE UserId = %s
-            """, (user_id,))
-            user = cur.fetchone()
-
-            if user:
-                user_id = user[0]
-                show_forget_password = user[1]
-                can_view_employees = user[2]
-                can_register_employee = user[3]
-                can_register_visitor = user[4]
-                can_register_combined = user[5]
-                can_view_visitors = user[6]
-                can_view_users = user[7]
-                can_access_zone_requests = user[8]
-                can_access_visitor_settings = user[9]
-                can_add_company = user[10]
-                can_add_department = user[11]
-                can_add_designation = user[12]
-                can_add_role = user[13]
-                can_add_zone = user[14]
-                can_add_zone_area = user[15]
-                can_quick_register = user[16]
-                can_access_role_access = user[17]
-            else:
-                flash('User not found.', 'danger')
-                return redirect(url_for('login'))
-
-            # Fetch profile photo
-            cur.execute("SELECT Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
-            photo_result = cur.fetchone()
-            photo_filename = photo_result[0] if photo_result else None
-
-            # Get logged-in employee's company
-            cur.execute("""
-                SELECT Company FROM Employee 
-                WHERE Employee_Id = %s
-            """, (user_id,))
-            result = cur.fetchone()
-            employee_company = result[0] if result else None
-
-    except Exception as e:
-        logging.error(f'Error fetching user data: {e}')
-        flash('An error occurred while fetching your data. Please try again.', 'danger')
-        return redirect(url_for('dashboard'))
-    finally:
-        if conn:
-            conn.close()
-
-    # Fetch visitor list
-    visitor_list = []
-    conn = get_db_connection()
-    if conn is None:
-        flash('Database connection error. Please try again later.', 'danger')
-        return redirect(url_for('dashboard'))
-
-    try:
-        with conn.cursor() as cur:
-            # Update visit status for past pending visits
-            cur.execute("""
-                UPDATE VisitorVisitStatus
-                SET VisitStatus = 'No Visit'
-                WHERE VisitDate < CURRENT_DATE 
-                AND VisitStatus = 'Pending'
-            """)
-            conn.commit()
-
-            base_query =  """
-    SELECT 
-        v.VisitorId,
-        v.FirstName,
-        v.LastName,
-        v.Email,
-        v.Phone,
-        v.HostName,
-        vvs.VisitDate,
-        vvs.VisitPurpose,
-        vvs.VisitStatus,
-        vvs.InTimePhoto,
-        vvs.OutTimePhoto,
-        vvs.InTime,
-        vvs.OutTime,
-        vvs.CreatedAt as visit_created_at,
-        vovs.VisitorFromOrganization,
-        vovs.VisitorFromLocation,
-        vovs.VisitInOrganization,
-        vovs.VisitInLocation,
-        COALESCE(vzs.zone_status, 'green zone') as zone_status,
-        va.AppointmentId,
-        va.AppointmentDate,
-        va.AppointmentLocation,
-        vh.updateid as last_update_id,
-        vh.update_reason as last_update_reason
-    FROM VisitorAppointment va
-    INNER JOIN Visitor v ON va.VisitorId = v.VisitorId
-    INNER JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
-    INNER JOIN VisitorOrganizationVisitStatus vovs ON va.AppointmentId = vovs.AppointmentId
-    LEFT JOIN Visitor_Zone_Status vzs ON va.AppointmentId = vzs.AppointmentId
-    LEFT JOIN VisitorUpdateHistory vh ON va.AppointmentId = vh.AppointmentId
-    ORDER BY va.AppointmentDate DESC, va.CreatedAt DESC
-"""
-            
-            cur.execute(base_query)
-            visitors = cur.fetchall()
-
-            if visitors:
-                visitor_list = [{
-        'VisitorId': visitor[0],
-        'FirstName': visitor[1],
-        'LastName': visitor[2],
-        'Email': visitor[3],
-        'Phone': visitor[4],
-        'HostName': visitor[5],
-        'VisitDate': visitor[6],
-        'VisitPurpose': visitor[7],
-        'VisitorStatus': visitor[8],
-        'VisitorPhoto': visitor[9],
-        'OutTimePhoto': visitor[10],
-        'CheckInTime': visitor[11],
-        'CheckOutTime': visitor[12],
-        'CreatedAt': visitor[13],
-        'VisitorOrganization': visitor[14],
-        'VisitorLocation': visitor[15],
-        'OrganizationName': visitor[16],
-        'OrganizationLocation': visitor[17],
-        'ZoneStatus': visitor[18],
-        'AppointmentId': visitor[19],
-        'AppointmentDate': visitor[20],
-        'AppointmentLocation': visitor[21],
-        'LastUpdateId': visitor[22],
-        'LastUpdateReason': visitor[23]
-    } for visitor in visitors]
-
-    except Exception as e:
-        logging.error(f'Error fetching visitors: {e}')
-        flash('An error occurred while fetching visitors. Please try again.', 'danger')
-    finally:
-        if conn:
-            conn.close()
-
-    return render_template('view_visitors.html', 
-                         visitors=visitor_list,
-                         employee_company=employee_company,
-                         user_id=user_id,
-                         photo_filename=photo_filename,
-                         show_forget_password=show_forget_password,
-                         can_view_employees=can_view_employees,
-                         can_register_employee=can_register_employee,
-                         can_register_visitor=can_register_visitor,
-                         can_register_combined=can_register_combined,
-                         can_view_visitors=can_view_visitors,
-                         can_view_users=can_view_users,
-                         can_access_zone_requests=can_access_zone_requests,
-                         can_access_visitor_settings=can_access_visitor_settings,
-                         can_add_company=can_add_company,
-                         can_add_department=can_add_department,
-                         can_add_designation=can_add_designation,
-                         can_add_role=can_add_role,
-                         can_add_zone=can_add_zone,
-                         can_add_zone_area=can_add_zone_area,
-                         can_quick_register=can_quick_register,
-                         can_access_role_access=can_access_role_access)
-
 @app.route('/view_model_visitor/<int:visitor_id>/<int:appointment_id>', methods=['GET'])
 def view_model_visitor(visitor_id, appointment_id):
     user_id = session.get('user_id')
@@ -3974,6 +4713,262 @@ def view_model_visitor(visitor_id, appointment_id):
                          can_add_zone_area=can_add_zone_area,
                          can_quick_register=can_quick_register,
                          can_access_role_access=can_access_role_access)
+@app.route('/view_visitors')
+def view_visitors():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    if conn is None:
+        flash('Database connection error. Please try again later.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    try:
+        with conn.cursor() as cur:
+            # Fetch user permissions
+            cur.execute("""
+                SELECT UserId, ShowForgetPassword, CanViewEmployees, 
+                       CanRegisterEmployee, CanRegisterVisitor, 
+                       CanRegisterCombined, CanViewVisitors, CanViewUsers,
+                       CanAccessZoneRequests, CanAccessVisitorSettings,
+                       CanAddCompany, CanAddDepartment, CanAddDesignation,
+                       CanAddRole, CanAddZone, CanAddZoneArea, CanQuickRegister,
+                       CanAccessRoleAccess
+                FROM Users 
+                WHERE UserId = %s
+            """, (user_id,))
+            user = cur.fetchone()
+            
+            if not user:
+                flash('User not found.', 'danger')
+                return redirect(url_for('login'))
+
+            # Fetch profile photo
+            cur.execute("SELECT Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
+            photo_result = cur.fetchone()
+            photo_filename = photo_result[0] if photo_result else None
+
+            # Get employee's company
+            cur.execute("SELECT Company FROM Employee WHERE Employee_Id = %s", (user_id,))
+            result = cur.fetchone()
+            employee_company = result[0] if result else None
+            
+            # Get user's authorized companies for visitor access
+            cur.execute("""
+                SELECT Company 
+                FROM UserVisitorViewCompanyAccess 
+                WHERE access_user_id = %s
+            """, (user_id,))
+            authorized_view_companies = [row[0] for row in cur.fetchall()]
+            
+            # If no view-specific companies are found, fall back to regular visitor companies
+            if not authorized_view_companies:
+                cur.execute("""
+                    SELECT Company 
+                    FROM UserVisitorCompanyAccess 
+                    WHERE access_user_id = %s
+                """, (user_id,))
+                authorized_companies = [row[0] for row in cur.fetchall()]
+            else:
+                authorized_companies = authorized_view_companies
+
+            # Fetch frequent visitors with company filter
+            visitor_query = """
+                WITH MonthlyVisits AS (
+                    SELECT 
+                        v.VisitorId,
+                        v.FirstName,
+                        v.LastName,
+                        v.Email,
+                        v.Phone,
+                        vovs.VisitInOrganization,
+                        COUNT(va.AppointmentId) as visit_count,
+                        STRING_AGG(va.AppointmentId::text, ',') as appointment_ids,
+                        STRING_AGG(vvs.VisitStatus, ',') as visit_statuses,
+                        STRING_AGG(vvs.VisitDate::text, ',') as visit_dates,
+                        MAX(vvs.VisitDate) as last_visit_date
+                    FROM Visitor v
+                    JOIN VisitorAppointment va ON v.VisitorId = va.VisitorId
+                    JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
+                    JOIN VisitorOrganizationVisitStatus vovs ON va.AppointmentId = vovs.AppointmentId
+                    WHERE 
+                        vvs.VisitDate >= CURRENT_DATE - INTERVAL '30 days'
+                        AND vvs.VisitDate <= CURRENT_DATE + INTERVAL '5 days'
+                    """
+
+            if authorized_companies:
+                visitor_query += f" AND vovs.VisitInOrganization = ANY(%s)"
+                visitor_query += """
+                    GROUP BY v.VisitorId, v.FirstName, v.LastName, v.Email, v.Phone, vovs.VisitInOrganization
+                    HAVING COUNT(va.AppointmentId) > 1
+                )
+                SELECT * FROM MonthlyVisits
+                ORDER BY visit_count DESC, last_visit_date DESC
+                """
+                cur.execute(visitor_query, (authorized_companies,))
+            else:
+                visitor_query += """
+                    GROUP BY v.VisitorId, v.FirstName, v.LastName, v.Email, v.Phone, vovs.VisitInOrganization
+                    HAVING COUNT(va.AppointmentId) > 1
+                )
+                SELECT * FROM MonthlyVisits
+                ORDER BY visit_count DESC, last_visit_date DESC
+                """
+                cur.execute(visitor_query)
+
+            frequent_visitors = cur.fetchall()
+
+            # Query for unique visitors with company filter
+            unique_query = """
+                WITH VisitorSummary AS (
+                    SELECT DISTINCT ON (v.VisitorId)
+                        v.VisitorId,
+                        v.FirstName,
+                        v.LastName,
+                        v.Email,
+                        v.Phone,
+                        vovs.VisitorFromOrganization,
+                        vovs.VisitInOrganization,
+                        COUNT(*) OVER (PARTITION BY v.VisitorId) as total_visits,
+                        FIRST_VALUE(vvs.VisitStatus) OVER (PARTITION BY v.VisitorId ORDER BY vvs.VisitDate DESC) as last_visit_status,
+                        FIRST_VALUE(vzs.zone_status) OVER (PARTITION BY v.VisitorId ORDER BY vvs.VisitDate DESC) as zone_status
+                    FROM Visitor v
+                    JOIN VisitorAppointment va ON v.VisitorId = va.VisitorId
+                    JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
+                    JOIN VisitorOrganizationVisitStatus vovs ON va.AppointmentId = vovs.AppointmentId
+                    LEFT JOIN Visitor_Zone_Status vzs ON va.AppointmentId = vzs.AppointmentId
+                    """
+
+            if authorized_companies:
+                unique_query += " WHERE vovs.VisitInOrganization = ANY(%s)"
+                unique_query += """
+                )
+                SELECT * FROM VisitorSummary
+                ORDER BY total_visits DESC, LastName, FirstName
+                """
+                cur.execute(unique_query, (authorized_companies,))
+            else:
+                unique_query += """
+                )
+                SELECT * FROM VisitorSummary
+                ORDER BY total_visits DESC, LastName, FirstName
+                """
+                cur.execute(unique_query)
+
+            unique_visitors_raw = cur.fetchall()
+
+            # Convert unique visitors to list of dictionaries
+            unique_visitors = []
+            for v in unique_visitors_raw:
+                visitor_dict = {
+                    'VisitorId': v[0],
+                    'FirstName': v[1],
+                    'LastName': v[2],
+                    'Email': v[3],
+                    'Phone': v[4],
+                    'VisitorOrganization': v[5],
+                    'VisitInOrganization': v[6],
+                    'TotalVisits': v[7],
+                    'LastVisitStatus': v[8],
+                    'ZoneStatus': v[9] or 'green zone'
+                }
+
+                # Fetch visit history for each visitor with company filter
+                if authorized_companies:
+                    cur.execute("""
+                        SELECT 
+                            va.AppointmentId,
+                            vvs.VisitDate,
+                            vvs.VisitStatus
+                        FROM VisitorAppointment va
+                        JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
+                        JOIN VisitorOrganizationVisitStatus vovs ON va.AppointmentId = vovs.AppointmentId
+                        WHERE va.VisitorId = %s
+                        AND vovs.VisitInOrganization = ANY(%s)
+                        ORDER BY vvs.VisitDate DESC
+                    """, (visitor_dict['VisitorId'], authorized_companies))
+                else:
+                    cur.execute("""
+                        SELECT 
+                            va.AppointmentId,
+                            vvs.VisitDate,
+                            vvs.VisitStatus
+                        FROM VisitorAppointment va
+                        JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
+                        WHERE va.VisitorId = %s
+                        ORDER BY vvs.VisitDate DESC
+                    """, (visitor_dict['VisitorId'],))
+
+                visits = cur.fetchall()
+                
+                visitor_dict['Visits'] = [{
+                    'AppointmentId': v[0],
+                    'VisitDate': v[1].strftime('%Y-%m-%d'),
+                    'VisitStatus': v[2]
+                } for v in visits]
+                
+                unique_visitors.append(visitor_dict)
+
+            # Fetch all available companies for the company selection modal
+            cur.execute("SELECT DISTINCT CompanyName FROM CompanyDetails ORDER BY CompanyName")
+            all_companies = [row[0] for row in cur.fetchall()]
+
+            # Process frequent visitors data
+            frequent_visitor_list = [{
+                'VisitorId': v[0],
+                'FirstName': v[1],
+                'LastName': v[2],
+                'Email': v[3],
+                'Phone': v[4],
+                'VisitInOrganization': v[5],
+                'VisitCount': v[6],
+                'AppointmentIds': v[7].split(','),
+                'VisitStatuses': v[8].split(','),
+                'VisitDates': v[9].split(','),
+                'LastVisitDate': v[10].strftime('%Y-%m-%d')
+            } for v in frequent_visitors]
+
+    except Exception as e:
+        logging.error(f'Error in view_visitors: {e}')
+        flash('An error occurred while fetching data. Please try again.', 'danger')
+        return redirect(url_for('dashboard'))
+    finally:
+        if conn:
+            conn.close()
+
+    # Convert user permissions tuple to dictionary
+    permissions = {
+        'user_id': user[0],
+        'show_forget_password': user[1],
+        'can_view_employees': user[2],
+        'can_register_employee': user[3],
+        'can_register_visitor': user[4],
+        'can_register_combined': user[5],
+        'can_view_visitors': user[6],
+        'can_view_users': user[7],
+        'can_access_zone_requests': user[8],
+        'can_access_visitor_settings': user[9],
+        'can_add_company': user[10],
+        'can_add_department': user[11],
+        'can_add_designation': user[12],
+        'can_add_role': user[13],
+        'can_add_zone': user[14],
+        'can_add_zone_area': user[15],
+        'can_quick_register': user[16],
+        'can_access_role_access': user[17]
+    }
+
+    return render_template(
+        'view_visitors.html',
+        frequent_visitors=frequent_visitor_list,
+        unique_visitors=unique_visitors,
+        all_companies=all_companies,
+        authorized_companies=authorized_companies,
+        photo_filename=photo_filename,
+        employee_company=employee_company,
+        **permissions
+    )
 
 @app.route('/edit_visitor/<int:visitor_id>', methods=['GET', 'POST'])
 @app.route('/edit_visitor', methods=['GET', 'POST'])
@@ -4408,17 +5403,254 @@ def toggle_checkout(visitor_id):
     finally:
         conn.close()
 
+@app.route('/filter_by_status', methods=['GET'])
+def filter_by_status():
+    user_id = request.args.get('userId') or session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'User not authenticated'}), 401
+        
+    status = request.args.get('status')
+    if not status:
+        return jsonify({'error': 'Status parameter is required'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'error': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Get user's authorized companies
+            cursor.execute("""
+                SELECT Company 
+                FROM UserCombinedRegisterCompanyAccess 
+                WHERE access_user_id = %s
+            """, (user_id,))
+            authorized_companies = [row[0] for row in cursor.fetchall()]
+            
+            # Get employee's company
+            cursor.execute("""
+                SELECT Company FROM Employee 
+                WHERE Employee_Id = %s
+            """, (user_id,))
+            result = cursor.fetchone()
+            employee_company = result[0] if result else None
+            
+            # Include both authorized companies and employee's company in the filter
+            all_accessible_companies = authorized_companies + [employee_company] if employee_company else authorized_companies
+            
+            if not all_accessible_companies:
+                return jsonify({'error': 'User has no company access permissions'}), 403
+                
+            # Build the query with filter by status and company access
+            query = """
+            SELECT 
+                v.VisitorId,
+                v.FirstName,
+                v.LastName,
+                v.Email,
+                v.Phone,
+                v.HostName,
+                vvs.VisitDate,
+                vvs.VisitPurpose,
+                vvs.VisitStatus,
+                vvs.InTimePhoto as VisitorPhoto,
+                vvs.OutTimePhoto,
+                vvs.InTime as CheckInTime,
+                vvs.OutTime as CheckOutTime,
+                vovs.VisitorFromOrganization,
+                vovs.VisitorFromLocation,
+                vovs.VisitInOrganization as OrganizationName,
+                vovs.VisitInLocation as OrganizationLocation,
+                COALESCE(vzs.zone_status, 'green zone') as ZoneStatus,
+                va.AppointmentId,
+                va.AppointmentDate,
+                va.AppointmentLocation
+            FROM VisitorAppointment va
+            INNER JOIN Visitor v ON va.VisitorId = v.VisitorId
+            INNER JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
+            INNER JOIN VisitorOrganizationVisitStatus vovs ON va.AppointmentId = vovs.AppointmentId
+            LEFT JOIN Visitor_Zone_Status vzs ON va.AppointmentId = vzs.AppointmentId
+            WHERE vvs.VisitStatus = %s
+            AND vovs.VisitInOrganization = ANY(%s)
+            ORDER BY va.AppointmentDate DESC, va.CreatedAt DESC
+            """
+            
+            cursor.execute(query, (status, all_accessible_companies))
+            visitors = cursor.fetchall()
+            
+            result = []
+            for visitor in visitors:
+                result.append({
+                    'VisitorId': visitor[0],
+                    'FirstName': visitor[1],
+                    'LastName': visitor[2],
+                    'Email': visitor[3],
+                    'Phone': visitor[4],
+                    'HostName': visitor[5],
+                    'VisitDate': visitor[6].strftime('%Y-%m-%d') if visitor[6] else None,
+                    'VisitPurpose': visitor[7],
+                    'VisitorStatus': visitor[8],
+                    'VisitorPhoto': visitor[9],
+                    'OutTimePhoto': visitor[10],
+                    'CheckInTime': visitor[11].strftime('%H:%M:%S') if visitor[11] else None,
+                    'CheckOutTime': visitor[12].strftime('%H:%M:%S') if visitor[12] else None,
+                    'VisitorOrganization': visitor[13],
+                    'VisitorLocation': visitor[14],
+                    'OrganizationName': visitor[15],
+                    'OrganizationLocation': visitor[16],
+                    'ZoneStatus': visitor[17],
+                    'AppointmentId': visitor[18],
+                    'AppointmentDate': visitor[19].strftime('%Y-%m-%d') if visitor[19] else None,
+                    'AppointmentLocation': visitor[20]
+                })
+            
+            return jsonify({'visitors': result})
+            
+    except Exception as e:
+        logging.error(f'Error filtering visitors by status: {e}')
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/unified_search', methods=['GET'])
+def unified_search():
+    user_id = request.args.get('userId') or session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'User not authenticated'}), 401
+        
+    search_term = request.args.get('search_term')
+    if not search_term:
+        return jsonify({'error': 'Search term is required'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'error': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Get user's authorized companies
+            cursor.execute("""
+                SELECT Company 
+                FROM UserCombinedRegisterCompanyAccess 
+                WHERE access_user_id = %s
+            """, (user_id,))
+            authorized_companies = [row[0] for row in cursor.fetchall()]
+            
+            # Get employee's company
+            cursor.execute("""
+                SELECT Company FROM Employee 
+                WHERE Employee_Id = %s
+            """, (user_id,))
+            result = cursor.fetchone()
+            employee_company = result[0] if result else None
+            
+            # Include both authorized companies and employee's company in the filter
+            all_accessible_companies = authorized_companies + [employee_company] if employee_company else authorized_companies
+            
+            if not all_accessible_companies:
+                return jsonify({'error': 'User has no company access permissions'}), 403
+                
+            # Build the query with improved search and company access
+            query = """
+            SELECT 
+                v.VisitorId,
+                v.FirstName,
+                v.LastName,
+                v.Email,
+                v.Phone,
+                v.HostName,
+                vvs.VisitDate,
+                vvs.VisitPurpose,
+                vvs.VisitStatus,
+                vvs.InTimePhoto as VisitorPhoto,
+                vvs.OutTimePhoto,
+                vvs.InTime as CheckInTime,
+                vvs.OutTime as CheckOutTime,
+                vovs.VisitorFromOrganization,
+                vovs.VisitorFromLocation,
+                vovs.VisitInOrganization as OrganizationName,
+                vovs.VisitInLocation as OrganizationLocation,
+                COALESCE(vzs.zone_status, 'green zone') as ZoneStatus,
+                va.AppointmentId,
+                va.AppointmentDate,
+                va.AppointmentLocation,
+                va.CreatedAt
+            FROM VisitorAppointment va
+            INNER JOIN Visitor v ON va.VisitorId = v.VisitorId
+            INNER JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
+            INNER JOIN VisitorOrganizationVisitStatus vovs ON va.AppointmentId = vovs.AppointmentId
+            LEFT JOIN Visitor_Zone_Status vzs ON va.AppointmentId = vzs.AppointmentId
+            WHERE (
+                v.VisitorId::text ILIKE %s OR
+                v.FirstName ILIKE %s OR
+                v.LastName ILIKE %s OR
+                v.Email ILIKE %s OR
+                v.Phone ILIKE %s OR
+                v.HostName ILIKE %s OR
+                vovs.VisitorFromOrganization ILIKE %s OR
+                va.AppointmentId::text ILIKE %s OR
+                CONCAT(v.FirstName, ' ', v.LastName) ILIKE %s
+            )
+            AND vovs.VisitInOrganization = ANY(%s)
+            ORDER BY va.AppointmentDate DESC, va.CreatedAt DESC
+            """
+            
+            search_pattern = f'%{search_term}%'
+            params = (search_pattern,) * 9 + (all_accessible_companies,)
+            cursor.execute(query, params)
+            visitors = cursor.fetchall()
+            
+            result = []
+            for visitor in visitors:
+                result.append({
+                    'VisitorId': visitor[0],
+                    'FirstName': visitor[1],
+                    'LastName': visitor[2],
+                    'Email': visitor[3],
+                    'Phone': visitor[4],
+                    'HostName': visitor[5],
+                    'VisitDate': visitor[6].strftime('%Y-%m-%d') if visitor[6] else None,
+                    'VisitPurpose': visitor[7],
+                    'VisitorStatus': visitor[8],
+                    'VisitorPhoto': visitor[9],
+                    'OutTimePhoto': visitor[10],
+                    'CheckInTime': visitor[11].strftime('%Y-%m-%d %H:%M:%S') if visitor[11] else None,
+                    'CheckOutTime': visitor[12].strftime('%Y-%m-%d %H:%M:%S') if visitor[12] else None,
+                    'VisitorOrganization': visitor[13],
+                    'VisitorLocation': visitor[14],
+                    'OrganizationName': visitor[15],
+                    'OrganizationLocation': visitor[16],
+                    'ZoneStatus': visitor[17],
+                    'AppointmentId': visitor[18],
+                    'AppointmentDate': visitor[19].strftime('%Y-%m-%d') if visitor[19] else None,
+                    'AppointmentLocation': visitor[20]
+                })
+            
+            # Return 404 if no results found (better UX)
+            if not result:
+                return jsonify({'message': 'No visitors found'}), 404
+                
+            return jsonify({'visitors': result})
+            
+    except Exception as e:
+        logging.error(f'Error performing unified search: {e}')
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/search_visitor')
 def search_visitor():
     try:
         email = request.args.get('email')
+        phone = request.args.get('phone')
         appointment_id = request.args.get('appointment_id')
-        logging.info(f"Searching for visitor with email: {email} or appointment ID: {appointment_id}")
+        logging.info(f"Searching for visitor with email: {email}, phone: {phone}, or appointment ID: {appointment_id}")
         
-        if not email and not appointment_id:
-            logging.warning("No email or appointment ID provided in search request")
-            return jsonify({'error': 'Email or appointment ID is required'}), 400
+        if not email and not phone and not appointment_id:
+            logging.warning("No email, phone, or appointment ID provided in search request")
+            return jsonify({'error': 'Email, phone, or appointment ID is required'}), 400
             
         conn = get_db_connection()
         if conn is None:
@@ -4427,18 +5659,20 @@ def search_visitor():
 
         with conn.cursor() as cur:
             # Build the WHERE clause based on search parameters
-            where_clause = ""
+            where_conditions = []
             params = []
             
-            if email and appointment_id:
-                where_clause = "WHERE (v.Email ILIKE %s OR va.AppointmentId = %s)"
-                params = [f'%{email}%', appointment_id]
-            elif email:
-                where_clause = "WHERE v.Email ILIKE %s"
-                params = [f'%{email}%']
-            else:
-                where_clause = "WHERE va.AppointmentId = %s"
-                params = [appointment_id]
+            if email:
+                where_conditions.append("v.Email ILIKE %s")
+                params.append(f'%{email}%')
+            if phone:
+                where_conditions.append("v.Phone ILIKE %s")
+                params.append(f'%{phone}%')
+            if appointment_id:
+                where_conditions.append("va.AppointmentId = %s")
+                params.append(appointment_id)
+
+            where_clause = "WHERE " + " OR ".join(where_conditions) if where_conditions else ""
 
             search_query = f"""
             SELECT 
@@ -4529,10 +5763,663 @@ def save_visitor_settings(settings):
     # Replace this with actual logic to save settings.
     print("Settings saved:", settings)
 
+@app.route('/get_user_combined_companies', methods=['GET'])
+def get_user_combined_companies():
+    user_id = request.args.get('userId')
     
+    if not user_id:
+        return jsonify({'success': False, 'message': 'Missing userId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Get all available companies
+            cursor.execute("""
+                SELECT DISTINCT CompanyName 
+                FROM CompanyDetails 
+                ORDER BY CompanyName
+            """)
+            all_companies = [row[0] for row in cursor.fetchall()]
+            
+            # Get user's selected companies
+            cursor.execute("""
+                SELECT Company 
+                FROM UserCombinedRegisterCompanyAccess 
+                WHERE access_user_id = %s
+            """, (user_id,))
+            user_companies = [row[0] for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'companies': all_companies,
+                'selectedCompanies': user_companies
+            })
+            
+    except Exception as e:
+        logging.error(f'Error getting user combined register companies: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/update_combined_company_access', methods=['POST'])
+def update_combined_company_access():
+    user_id = request.form.get('userId')
+    companies = json.loads(request.form.get('companies', '[]'))
+    
+    if not user_id:
+        return jsonify({'success': False, 'message': 'Missing userId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Remove existing combined register company access records
+            cursor.execute("""
+                DELETE FROM UserCombinedRegisterCompanyAccess 
+                WHERE access_user_id = %s
+            """, (user_id,))
+            
+            # Insert new combined register company access records
+            for company in companies:
+                cursor.execute("""
+                    INSERT INTO UserCombinedRegisterCompanyAccess (access_user_id, Company) 
+                    VALUES (%s, %s)
+                """, (user_id, company))
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'message': 'Combined register company access updated successfully'
+            })
+            
+    except Exception as e:
+        conn.rollback()
+        logging.error(f'Error updating combined register company access: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/remove_combined_company_access', methods=['POST'])
+def remove_combined_company_access():
+    user_id = request.form.get('userId')
+    
+    if not user_id:
+        return jsonify({'success': False, 'message': 'Missing userId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                DELETE FROM UserCombinedRegisterCompanyAccess 
+                WHERE access_user_id = %s
+            """, (user_id,))
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'message': 'Combined register company access removed successfully'
+            })
+            
+    except Exception as e:
+        logging.error(f'Error removing combined register company access: {e}')
+        return jsonify({
+            'success': False, 
+            'message': 'An error occurred while removing combined register company access'
+        }), 500
+    finally:
+        conn.close()    
      
+
+@app.route('/get_role_combined_register_companies', methods=['GET'])
+def get_role_combined_register_companies():
+    company_id = request.args.get('companyId')
+    role_id = request.args.get('roleId')
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Get all available companies first
+            cursor.execute("""
+                SELECT DISTINCT CompanyName 
+                FROM CompanyDetails 
+                ORDER BY CompanyName
+            """)
+            all_companies = [row[0] for row in cursor.fetchall()]
+            
+            # Then get role's selected companies for combined register access
+            cursor.execute("""
+                SELECT Company 
+                FROM RoleCombinedRegisterCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            role_companies = [row[0] for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'companies': all_companies,
+                'selectedCompanies': role_companies
+            })
+            
+    except Exception as e:
+        logging.error(f'Error getting role combined register companies: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/update_role_combined_register_company_access', methods=['POST'])
+def update_role_combined_register_company_access():
+    company_id = request.form.get('companyId')
+    role_id = request.form.get('roleId')
+    companies = json.loads(request.form.get('companies', '[]'))
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # First remove existing combined register company access records for this role
+            cursor.execute("""
+                DELETE FROM RoleCombinedRegisterCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            
+            # Insert new combined register company access records
+            for company in companies:
+                cursor.execute("""
+                    INSERT INTO RoleCombinedRegisterCompanyAccess (company_id, role_id, Company) 
+                    VALUES (%s, %s, %s)
+                """, (company_id, role_id, company))
+            
+            # Update all users with this role in this company
+            cursor.execute("""
+                WITH role_companies AS (
+                    SELECT Company FROM RoleCombinedRegisterCompanyAccess
+                    WHERE company_id = %s AND role_id = %s
+                )
+                DELETE FROM UserCombinedRegisterCompanyAccess
+                WHERE access_user_id IN (
+                    SELECT employee_id FROM EmployeeRoles
+                    WHERE company_id = %s AND role_id = %s
+                )
+            """, (company_id, role_id, company_id, role_id))
+            
+            for company in companies:
+                cursor.execute("""
+                    INSERT INTO UserCombinedRegisterCompanyAccess (access_user_id, Company)
+                    SELECT employee_id, %s
+                    FROM EmployeeRoles
+                    WHERE company_id = %s AND role_id = %s
+                """, (company, company_id, role_id))
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'message': 'Combined Register company access updated successfully'
+            })
+            
+    except Exception as e:
+        conn.rollback()
+        logging.error(f'Error updating combined register company access: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+        
+             
 @app.route('/combined_register_visitor', methods=['GET', 'POST'])
 def combined_register_visitor():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+
+    # Fetch user information including permissions
+    conn = get_db_connection()
+    if conn is None:
+        flash('Database connection error. Please try again later.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    try:
+        with conn.cursor() as cur:
+            # Fetch user information including all necessary settings
+            cur.execute("""
+                SELECT UserId, ShowForgetPassword, CanViewEmployees, 
+                       CanRegisterEmployee, CanRegisterVisitor, 
+                       CanRegisterCombined, CanViewVisitors, CanViewUsers,
+                       CanAccessZoneRequests, CanAccessVisitorSettings,
+                       CanAddCompany, CanAddDepartment, CanAddDesignation,
+                       CanAddRole, CanAddZone, CanAddZoneArea, CanQuickRegister,
+                       CanAccessRoleAccess
+                FROM Users 
+                WHERE UserId = %s
+            """, (user_id,))
+            user = cur.fetchone()
+
+            if user:
+                user_id = user[0]
+                show_forget_password = user[1]
+                can_view_employees = user[2]
+                can_register_employee = user[3]
+                can_register_visitor = user[4]
+                can_register_combined = user[5]
+                can_view_visitors = user[6]
+                can_view_users = user[7]
+                can_access_zone_requests = user[8]
+                can_access_visitor_settings = user[9]
+                can_add_company = user[10]
+                can_add_department = user[11]
+                can_add_designation = user[12]
+                can_add_role = user[13]
+                can_add_zone = user[14]
+                can_add_zone_area = user[15]
+                can_quick_register = user[16]
+                can_access_role_access = user[17]
+            else:
+                flash('User not found.', 'danger')
+                return redirect(url_for('login'))
+
+            # Fetch profile photo
+            cur.execute("SELECT Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
+            photo_result = cur.fetchone()
+            photo_filename = photo_result[0] if photo_result else None
+
+            # Get user's authorized companies for combined register
+            cur.execute("""
+                SELECT Company 
+                FROM UserCombinedRegisterCompanyAccess 
+                WHERE access_user_id = %s
+            """, (user_id,))
+            authorized_companies = [row[0] for row in cur.fetchall()]
+
+    except Exception as e:
+        logging.error(f'Error fetching user data: {e}')
+        flash('An error occurred while fetching your data. Please try again.', 'danger')
+        return redirect(url_for('dashboard'))
+    finally:
+        if conn:
+            conn.close()
+
+    # Get employee company
+    conn = get_db_connection()
+    employee_company = None
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT Company FROM Employee 
+                WHERE Employee_Id = %s
+            """, (user_id,))
+            result = cur.fetchone()
+            if result:
+                employee_company = result[0]
+    except Exception as e:
+        logging.error(f'Error fetching employee company: {e}')
+        flash('Error fetching employee company', 'danger')
+    finally:
+        if conn:
+            conn.close()
+
+    if not employee_company:
+        flash('Employee company not found.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    today = date.today()
+
+    if request.method == 'POST':
+        # Handle photo upload and check-in/out updates
+        if 'visitor_photo' in request.files or 'out_time_photo' in request.files or 'check_in_time' in request.form or 'check_out_time' in request.form:
+            appointment_id = request.form.get('appointment_id')
+            if not appointment_id:
+                return jsonify({'success': False, 'error': 'Appointment ID is required'}), 400
+
+            conn = get_db_connection()
+            try:
+                with conn.cursor() as cur:
+                    # First verify if the appointment exists and user has access
+                    cur.execute("""
+                        SELECT va.AppointmentId 
+                        FROM VisitorAppointment va
+                        JOIN VisitorOrganizationVisitStatus vovs ON va.AppointmentId = vovs.AppointmentId
+                        WHERE va.AppointmentId = %s
+                        AND (vovs.VisitInOrganization = ANY(%s) OR %s = ANY(%s))
+                    """, (appointment_id, authorized_companies, employee_company, authorized_companies))
+                    
+                    if not cur.fetchone():
+                        return jsonify({'success': False, 'error': 'Invalid Appointment ID or unauthorized access'}), 404
+
+                    update_fields = []
+                    update_values = []
+
+                    # Handle visitor photo upload
+                    if 'visitor_photo' in request.files:
+                        photo = request.files['visitor_photo']
+                        if photo.filename != '':
+                            filename, file_extension = os.path.splitext(secure_filename(photo.filename))
+                            photo_filename = f"{uuid.uuid4().hex}_{filename}{file_extension}"
+                            photo_path = os.path.join('static/visitor_photos', photo_filename)
+                            photo.save(photo_path)
+                            update_fields.append("InTimePhoto = %s")
+                            update_values.append(photo_filename)
+
+                    # Handle out time photo upload
+                    if 'out_time_photo' in request.files:
+                        photo = request.files['out_time_photo']
+                        if photo.filename != '':
+                            filename, file_extension = os.path.splitext(secure_filename(photo.filename))
+                            photo_filename = f"{uuid.uuid4().hex}_{filename}{file_extension}"
+                            photo_path = os.path.join('static/visitor_photos', photo_filename)
+                            photo.save(photo_path)
+                            update_fields.append("OutTimePhoto = %s")
+                            update_values.append(photo_filename)
+
+                    # Handle check-in time
+                    check_in_time = request.form.get('check_in_time')
+                    if check_in_time:
+                        update_fields.append("InTime = %s")
+                        update_fields.append("VisitStatus = 'Checked In'")
+                        update_values.append(check_in_time)
+
+                    # Handle check-out time
+                    check_out_time = request.form.get('check_out_time')
+                    if check_out_time:
+                        update_fields.append("OutTime = %s")
+                        update_fields.append("VisitStatus = 'Completed'")
+                        update_values.append(check_out_time)
+
+                    if update_fields:
+                        # Construct and execute the update query
+                        query = f"""
+                            UPDATE VisitorVisitStatus 
+                            SET {", ".join(update_fields)}
+                            WHERE AppointmentId = %s
+                        """
+                        update_values.append(appointment_id)
+                        cur.execute(query, tuple(update_values))
+
+                    conn.commit()
+                    return jsonify({'success': True, 'message': 'Updated successfully'})
+
+            except Exception as e:
+                logging.error(f'Error updating visitor status: {e}')
+                return jsonify({'success': False, 'error': str(e)}), 500
+            finally:
+                if conn:
+                    conn.close()
+
+        # Original visitor registration code
+        data = {
+            'first_name': request.form.get('first_name'),
+            'last_name': request.form.get('last_name'),
+            'email': request.form.get('email'),
+            'phone': request.form.get('phone'),
+            'visit_date': request.form.get('visit_date'),
+            'visit_purpose': request.form.get('visit_purpose'),
+            'visit_area': request.form.get('visit_area'),
+            'host_name': request.form.get('host_name'),
+            'visitor_organization': request.form.get('visitor_organization'),
+            'visitor_location': request.form.get('visitor_location'),
+            'organization_name': request.form.get('organization_name'),
+            'organization_location': request.form.get('organization_location')
+        }
+
+        # Verify organization access
+        if data['organization_name'] not in authorized_companies and data['organization_name'] != employee_company:
+            return jsonify({'success': False, 'error': 'Unauthorized to register for this organization'}), 403
+
+        required_fields = ['first_name', 'last_name', 'email', 'phone', 'visit_date', 'organization_name']
+        for field in required_fields:
+            if not data[field]:
+                return jsonify({'success': False, 'error': f'{field.replace("_", " ").title()} is required.'}), 400
+
+        zone_status = 'pending' if data['visit_area'] else 'green zone'
+        created_at = datetime.now()
+
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({'success': False, 'error': 'Database connection error.'}), 500
+
+        try:
+            with conn.cursor() as cur:
+                try:
+                    visit_date = datetime.strptime(data['visit_date'], '%Y-%m-%d').date()
+                except ValueError:
+                    return jsonify({'success': False, 'error': 'Invalid date format, should be YYYY-MM-DD.'}), 400
+
+                new_status = 'Pending' if visit_date >= today else 'No Visit'
+
+                # Check for existing visitor
+                cur.execute("""
+                    SELECT v.VisitorId, v.FirstName, v.LastName 
+                    FROM Visitor v
+                    WHERE v.Email = %s OR v.Phone = %s
+                """, (data['email'], data['phone']))
+                existing_visitor = cur.fetchone()
+
+                if existing_visitor:
+                    visitor_id = existing_visitor[0]
+                else:
+                    # Create new visitor
+                    cur.execute("""
+                        INSERT INTO Visitor (
+                            FirstName, LastName, Email, Phone, 
+                            HostName, CreatedBy, CreatedAt, VisitDate
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING VisitorId
+                    """, (
+                        data['first_name'], data['last_name'], data['email'], 
+                        data['phone'], data['host_name'], user_id, created_at, visit_date
+                    ))
+                    visitor_id = cur.fetchone()[0]
+
+                # Create new appointment
+                cur.execute("""
+                    INSERT INTO VisitorAppointment (
+                        VisitorId, AppointmentDate, AppointmentLocation,
+                        CreatedAt, CreatedBy
+                    ) VALUES (%s, %s, %s, %s, %s)
+                    RETURNING AppointmentId
+                """, (
+                    visitor_id, visit_date, data['organization_location'],
+                    created_at, user_id
+                ))
+                appointment_id = cur.fetchone()[0]
+
+                # Create new visit status
+                cur.execute("""
+                    INSERT INTO VisitorVisitStatus (
+                        VisitorId, VisitStatus, VisitPurpose, 
+                        CreatedBy, CreatedAt, VisitDate,
+                        AppointmentId
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    visitor_id, new_status, data['visit_purpose'],
+                    user_id, created_at, visit_date, appointment_id
+                ))
+
+                # Create new organization status
+                cur.execute("""
+                    INSERT INTO VisitorOrganizationVisitStatus (
+                        VisitorId, VisitorFromOrganization, VisitorFromLocation,
+                        VisitInOrganization, VisitInLocation, CreatedBy, CreatedAt,
+                        AppointmentId
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    visitor_id, data['visitor_organization'], data['visitor_location'],
+                    data['organization_name'], data['organization_location'], user_id, created_at,
+                    appointment_id
+                ))
+
+                # Create new zone status
+                cur.execute("""
+                    INSERT INTO Visitor_Zone_Status (
+                        zone_visitor_id, zone_requester_user_id, 
+                        zone_visit_area, zone_visit_purpose, 
+                        zone_status, zone_request_time,
+                        AppointmentId
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    visitor_id, user_id, data['visit_area'],
+                    data['visit_purpose'], zone_status, created_at,
+                    appointment_id
+                ))
+
+                conn.commit()
+                return jsonify({
+                    'success': True, 
+                    'message': 'Visitor appointment registered successfully!', 
+                    'visitor_id': visitor_id,
+                    'appointment_id': appointment_id
+                })
+
+        except Exception as e:
+            logging.error(f'Error registering visitor: {e}')
+            return jsonify({'success': False, 'error': str(e)}), 500
+        finally:
+            if conn:
+                conn.close()
+
+    # Fetch visitor list
+    visitor_list = []
+    try:
+        conn = get_db_connection()
+        if conn is None:
+            flash('Database connection error. Please try again later.', 'danger')
+            return redirect(url_for('dashboard'))
+
+        with conn.cursor() as cur:
+            # Update visit status for past pending visits
+            cur.execute("""
+                UPDATE VisitorVisitStatus
+                SET VisitStatus = 'No Visit'
+                WHERE VisitDate < CURRENT_DATE 
+                AND VisitStatus = 'Pending'
+            """)
+            conn.commit()
+
+            # Modified query to filter by authorized companies
+            base_query = """
+            SELECT 
+                v.VisitorId,
+                v.FirstName,
+                v.LastName,
+                v.Email,
+                v.Phone,
+                v.HostName,
+                vvs.VisitDate,
+                vvs.VisitPurpose,
+                vvs.VisitStatus,
+                vvs.InTimePhoto,
+                vvs.OutTimePhoto,
+                vvs.InTime,
+                vvs.OutTime,
+                vvs.CreatedAt as visit_created_at,
+                vovs.VisitorFromOrganization,
+                vovs.VisitorFromLocation,
+                vovs.VisitInOrganization,
+                vovs.VisitInLocation,
+                COALESCE(vzs.zone_status, 'green zone') as zone_status,
+                va.AppointmentId,
+                va.AppointmentDate,
+                va.AppointmentLocation,
+                vh.updateid as last_update_id,
+                vh.update_reason as last_update_reason
+            FROM VisitorAppointment va
+            INNER JOIN Visitor v ON va.VisitorId = v.VisitorId
+            INNER JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
+            INNER JOIN VisitorOrganizationVisitStatus vovs ON va.AppointmentId = vovs.AppointmentId
+            LEFT JOIN Visitor_Zone_Status vzs ON va.AppointmentId = vzs.AppointmentId
+            LEFT JOIN VisitorUpdateHistory vh ON va.AppointmentId = vh.AppointmentId
+            WHERE vovs.VisitInOrganization = ANY(%s)
+            ORDER BY va.AppointmentDate DESC, va.CreatedAt DESC
+            """
+            
+            # Include both authorized companies and employee's company in the filter
+            all_accessible_companies = authorized_companies + [employee_company] if employee_company else authorized_companies
+            cur.execute(base_query, (all_accessible_companies,))
+            visitors = cur.fetchall()
+
+            if visitors:
+                visitor_list = [{
+                    'VisitorId': visitor[0],
+                    'FirstName': visitor[1],
+                    'LastName': visitor[2],
+                    'Email': visitor[3],
+                    'Phone': visitor[4],
+                    'HostName': visitor[5],
+                    'VisitDate': visitor[6],
+                    'VisitPurpose': visitor[7],
+                    'VisitorStatus': visitor[8],
+                    'VisitorPhoto': visitor[9],
+                    'OutTimePhoto': visitor[10],
+                    'CheckInTime': visitor[11],
+                    'CheckOutTime': visitor[12],
+                    'CreatedAt': visitor[13],
+                    'VisitorOrganization': visitor[14],
+                    'VisitorLocation': visitor[15],
+                    'OrganizationName': visitor[16],
+                    'OrganizationLocation': visitor[17],
+                    'ZoneStatus': visitor[18],
+                    'AppointmentId': visitor[19],
+                    'AppointmentDate': visitor[20],
+                    'AppointmentLocation': visitor[21],
+                    'LastUpdateId': visitor[22],
+                    'LastUpdateReason': visitor[23]
+                } for visitor in visitors]
+            else:
+                logging.info('No visitors found in the database.')
+
+    except Exception as e:
+        logging.error(f'Error fetching visitors: {e}')
+        flash('An error occurred while fetching visitors. Please try again.', 'danger')
+    finally:
+        if conn:
+            conn.close()
+
+    return render_template('combined_register_visitor.html', 
+                         visitors=visitor_list,
+                         user_id=user_id,
+                         photo_filename=photo_filename,
+                         show_forget_password=show_forget_password,
+                         can_view_employees=can_view_employees,
+                         can_register_employee=can_register_employee,
+                         can_register_visitor=can_register_visitor,
+                         can_register_combined=can_register_combined,
+                         can_view_visitors=can_view_visitors,
+                         can_view_users=can_view_users,
+                         can_access_zone_requests=can_access_zone_requests,
+                         can_access_visitor_settings=can_access_visitor_settings,
+                         can_add_company=can_add_company,
+                         can_add_department=can_add_department,
+                         can_add_designation=can_add_designation,
+                         can_add_role=can_add_role,
+                         can_add_zone=can_add_zone,
+                         can_add_zone_area=can_add_zone_area,
+                         can_quick_register=can_quick_register,
+                         can_access_role_access=can_access_role_access,
+                         employee_company=employee_company,
+                         authorized_companies=authorized_companies)
+
+
+@app.route('/check_in_out', methods=['GET', 'POST'])
+def check_in_out():
     user_id = session.get('user_id')
     if not user_id:
         return redirect(url_for('login'))
@@ -4892,7 +6779,7 @@ def combined_register_visitor():
                     'Phone': visitor[4],
                     'HostName': visitor[5],
                     'VisitDate': visitor[6],
-                          'VisitPurpose': visitor[7],
+                    'VisitPurpose': visitor[7],
                     'VisitorStatus': visitor[8],
                     'VisitorPhoto': visitor[9],
                     'OutTimePhoto': visitor[10],
@@ -4913,8 +6800,8 @@ def combined_register_visitor():
             else:
                 logging.info('No visitors found in the database.')
     except Exception as query_error:
-            logging.error(f'Error executing visitor query: {query_error}')
-            flash(f'Error retrieving visitors: {query_error}', 'danger')         
+        logging.error(f'Error executing visitor query: {query_error}')
+        flash(f'Error retrieving visitors: {query_error}', 'danger')         
 
     except Exception as e:
         logging.error(f'Error fetching visitors: {e}')
@@ -4923,7 +6810,7 @@ def combined_register_visitor():
         if conn:
             conn.close()
 
-    return render_template('combined_register_visitor.html', 
+    return render_template('check_in_out.html',  
                          visitors=visitor_list,
                          user_id=user_id,
                          photo_filename=photo_filename,
@@ -5174,6 +7061,47 @@ def zone_requests_page():
             cur.execute("SELECT Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
             photo_result = cur.fetchone()
             photo_filename = photo_result[0] if photo_result else None
+            
+            # Get user's allowed companies for zone requests - Fixed with type casting
+            cur.execute("""
+                SELECT Company FROM UserZoneRequestCompanyAccess
+                WHERE access_user_id::text = %s::text
+            """, (user_id,))
+            allowed_companies = [row[0] for row in cur.fetchall()]
+            
+            # If no companies are defined in UserZoneRequestCompanyAccess, check role-based permissions
+            if not allowed_companies:
+                # Get the user's company and role
+                cur.execute("""
+                    SELECT er.company_id, er.role_id 
+                    FROM EmployeeRoles er
+                    WHERE er.employee_id::text = %s::text
+                """, (user_id,))
+                user_roles = cur.fetchall()
+                
+                # For each role the user has, get the allowed companies
+                for company_id, role_id in user_roles:
+                    cur.execute("""
+                        SELECT Company 
+                        FROM RoleZoneRequestCompanyAccess 
+                        WHERE company_id = %s AND role_id = %s
+                    """, (company_id, role_id))
+                    role_companies = [row[0] for row in cur.fetchall()]
+                    allowed_companies.extend(role_companies)
+                
+                # Remove duplicates
+                allowed_companies = list(set(allowed_companies))
+            
+            # Get all companies for the dropdown
+            cur.execute("SELECT DISTINCT CompanyName FROM CompanyDetails ORDER BY CompanyName")
+            all_companies = [row[0] for row in cur.fetchall()]
+            
+            # Get selected companies from request - MODIFIED to support multiple selections
+            selected_companies = request.args.getlist('company')
+            
+            # If no company is selected but user has allowed companies, show all allowed companies
+            if not selected_companies and allowed_companies:
+                selected_companies = allowed_companies
 
     except Exception as e:
         logging.error(f'Error fetching user data: {e}')
@@ -5257,8 +7185,8 @@ def zone_requests_page():
                     logging.error(f'Error processing zone request: {str(e)}')
                     return jsonify({'success': False, 'error': str(e)}), 500
 
-            # Fetch zone request list - Modified to limit to 1 result
-            cur.execute("""
+            # Build the SQL query to fetch zone requests
+            query = """
                 SELECT 
                     vz.zone_id, 
                     vz.zone_visitor_id, 
@@ -5278,11 +7206,29 @@ def zone_requests_page():
                     END
                 LEFT JOIN CompanyZoneAreas cza ON LOWER(TRIM(vz.zone_visit_area)) = LOWER(TRIM(cza.VisitAreaName))
                 LEFT JOIN CompanyDetails cd ON cza.CompanyID = cd.CompanyID
+            """
+            
+            params = []
+            
+            # MODIFIED: Add filter for multiple selected companies or all allowed companies
+            if selected_companies:
+                placeholders = ', '.join(['%s'] * len(selected_companies))
+                query += f" WHERE cd.CompanyName IN ({placeholders})"
+                params.extend(selected_companies)
+            # Otherwise if user has restricted access, only show allowed companies
+            elif allowed_companies:
+                placeholders = ', '.join(['%s'] * len(allowed_companies))
+                query += f" WHERE cd.CompanyName IN ({placeholders})"
+                params.extend(allowed_companies)
+                
+            # Add ordering
+            query += """
                 ORDER BY 
                     CASE WHEN vz.zone_status = 'pending' THEN 0 ELSE 1 END,
                     vz.zone_request_time DESC
-                LIMIT 1
-            """)
+            """
+            
+            cur.execute(query, params)
             zone_requests = cur.fetchall()
 
         formatted_requests = []
@@ -5320,7 +7266,10 @@ def zone_requests_page():
                          can_add_zone=can_add_zone,
                          can_add_zone_area=can_add_zone_area,
                          can_quick_register=can_quick_register,
-                         can_access_role_access=can_access_role_access)
+                         can_access_role_access=can_access_role_access,
+                         all_companies=all_companies,
+                         allowed_companies=allowed_companies,
+                         selected_companies=selected_companies) 
 
     except Exception as e:
         logging.error(f'Error fetching zone requests: {str(e)}')
@@ -5330,6 +7279,113 @@ def zone_requests_page():
     finally:
         if conn:
             conn.close()
+
+@app.route('/get_role_zone_request_companies', methods=['GET'])
+def get_role_zone_request_companies():
+    company_id = request.args.get('companyId')
+    role_id = request.args.get('roleId')
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Get all available companies first
+            cursor.execute("""
+                SELECT DISTINCT CompanyName 
+                FROM CompanyDetails 
+                ORDER BY CompanyName
+            """)
+            all_companies = [row[0] for row in cursor.fetchall()]
+            
+            # Then get role's selected companies for zone request access
+            cursor.execute("""
+                SELECT Company 
+                FROM RoleZoneRequestCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            role_companies = [row[0] for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'companies': all_companies,
+                'selectedCompanies': role_companies
+            })
+            
+    except Exception as e:
+        logging.error(f'Error getting role zone request companies: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/update_role_zone_request_company_access', methods=['POST'])
+def update_role_zone_request_company_access():
+    company_id = request.form.get('companyId')
+    role_id = request.form.get('roleId')
+    companies = json.loads(request.form.get('companies', '[]'))
+    
+    if not company_id or not role_id:
+        return jsonify({'success': False, 'message': 'Missing companyId or roleId parameter'}), 400
+    
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'message': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # First remove existing zone request company access records for this role
+            cursor.execute("""
+                DELETE FROM RoleZoneRequestCompanyAccess 
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            
+            # Insert new zone request company access records
+            for company in companies:
+                cursor.execute("""
+                    INSERT INTO RoleZoneRequestCompanyAccess (company_id, role_id, Company) 
+                    VALUES (%s, %s, %s)
+                """, (company_id, role_id, company))
+            
+            # Get all users with this role in this company
+            cursor.execute("""
+                SELECT employee_id FROM EmployeeRoles
+                WHERE company_id = %s AND role_id = %s
+            """, (company_id, role_id))
+            affected_users = [row[0] for row in cursor.fetchall()]
+            
+            # Update UserZoneRequestCompanyAccess for all affected users
+            for user_id in affected_users:
+                # First remove existing zone request access for this user - with type casting
+                cursor.execute("""
+                    DELETE FROM UserZoneRequestCompanyAccess
+                    WHERE access_user_id::text = %s::text
+                """, (user_id,))
+                
+                # Then insert new zone request access for each company - with type casting
+                for company in companies:
+                    cursor.execute("""
+                        INSERT INTO UserZoneRequestCompanyAccess (access_user_id, Company)
+                        VALUES (%s, %s)
+                    """, (user_id, company))
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'message': 'Zone request company access updated successfully',
+                'affected_users': len(affected_users)
+            })
+            
+    except Exception as e:
+        conn.rollback()
+        logging.error(f'Error updating zone request company access: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
 
 @app.route('/request-red-zone', methods=['POST'])
 def request_red_zone():
