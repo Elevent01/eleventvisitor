@@ -2932,23 +2932,39 @@ def view_employees():
             print("Number of employees found:", len(employees))
             
             if employees:
-                employee_list = [{
-                    'Employee_Id': emp[0],
-                    'First_Name': emp[1],
-                    'Last_Name': emp[2],
-                    'Email': emp[3],
-                    'Designation': emp[4],
-                    'Department': emp[5],
-                    'PhoneNumber': emp[6],
-                    'DateOfBirth': emp[7],
-                    'DateOfJoining': emp[8],
-                    'DateOfLeave': emp[9],
-                    'Status': emp[10],
-                    'Address': emp[11],
-                    'Photo': emp[12],
-                    'Company': emp[14], 
-                    'ReportingManager': emp[15]
-                } for emp in employees]
+                employee_list = []
+                for emp in employees:
+                    employee_id = emp[0]
+                    
+                    # Fetch role information for this employee
+                    cur.execute("""
+                        SELECT r.role_name
+                        FROM EmployeeRoles er
+                        JOIN Role r ON er.role_id = r.role_id
+                        WHERE er.employee_id = %s
+                    """, (employee_id,))
+                    
+                    role_result = cur.fetchone()
+                    role_name = role_result[0] if role_result else "No Role Assigned"
+                    
+                    employee_list.append({
+                        'Employee_Id': employee_id,
+                        'First_Name': emp[1],
+                        'Last_Name': emp[2],
+                        'Email': emp[3],
+                        'Designation': emp[4],
+                        'Department': emp[5],
+                        'PhoneNumber': emp[6],
+                        'DateOfBirth': emp[7],
+                        'DateOfJoining': emp[8],
+                        'DateOfLeave': emp[9],
+                        'Status': emp[10],
+                        'Address': emp[11],
+                        'Photo': emp[12],
+                        'Company': emp[14], 
+                        'ReportingManager': emp[15],
+                        'Role': role_name  # Add role name to employee data
+                    })
             else:
                 flash('No employees found in your accessible companies.', 'info')
     
@@ -3216,77 +3232,215 @@ def edit_employee(employee_id):
                 flash('User not found.', 'danger')
                 return redirect(url_for('login'))
 
+            # Fetch profile photo
+            cur.execute("SELECT Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
+            photo_result = cur.fetchone()
+            photo_filename = photo_result[0] if photo_result else None
+
+            # Check if the user has permission to edit employees
+            if not can_view_employees or not can_register_employee:
+                flash('You do not have permission to edit employees.', 'danger')
+                return redirect(url_for('dashboard'))
+
+            # Fetch company details for dropdown
+            cur.execute("SELECT CompanyID, CompanyName FROM CompanyDetails ORDER BY CompanyName")
+            companies = cur.fetchall()
+
+            # Fetch all available roles
+            cur.execute("SELECT role_id, role_name FROM Role ORDER BY role_name")
+            roles = cur.fetchall()
+
+            # Fetch all departments
+            cur.execute("SELECT department_id, department_name FROM Department ORDER BY department_name")
+            departments = cur.fetchall()
+
+            # Fetch all designations
+            cur.execute("SELECT designation_id, designation_name FROM DesignationMaster ORDER BY designation_name")
+            designations = cur.fetchall()
+
+            # Fetch the current employee data
+            cur.execute("""
+                SELECT 
+                    e.Employee_Id, e.First_Name, e.Last_Name, e.Email, 
+                    e.Designation, e.Department, e.PhoneNumber, 
+                    e.DateOfBirth, e.DateOfJoining, e.DateOfLeave, 
+                    e.Status, e.Address, e.Photo, e.Company, 
+                    e.ReportingManager, er.role_id
+                FROM Employee e
+                LEFT JOIN EmployeeRoles er ON e.Employee_Id = er.employee_id
+                WHERE e.Employee_Id = %s
+            """, (employee_id,))
+            employee = cur.fetchone()
+
+            if not employee:
+                flash('Employee not found.', 'danger')
+                return redirect(url_for('view_employees'))
+
+            # Get current department_id based on department name 
+            cur.execute("SELECT department_id FROM Department WHERE department_name = %s", (employee[5],))
+            department_id_result = cur.fetchone()
+            current_department_id = department_id_result[0] if department_id_result else None
+
+            # Get current designation_id based on designation name
+            cur.execute("SELECT designation_id FROM DesignationMaster WHERE designation_name = %s", (employee[4],))
+            designation_id_result = cur.fetchone()
+            current_designation_id = designation_id_result[0] if designation_id_result else None
+
+            # Get the reporting managers list (all employees)
+            cur.execute("""
+                SELECT Employee_Id, First_Name, Last_Name 
+                FROM Employee 
+                WHERE Employee_Id != %s 
+                ORDER BY First_Name
+            """, (employee_id,))
+            managers = cur.fetchall()
+
     except Exception as e:
-        logging.error(f'Error fetching user data: {e}')
-        flash('An error occurred while fetching user data. Please try again.', 'danger')
+        logging.error(f'Error fetching data for edit employee: {e}')
+        flash('An error occurred while fetching employee data. Please try again.', 'danger')
         return redirect(url_for('view_employees'))
 
     if request.method == 'POST':
-        # Retrieve updated data from the form
+        # Get form data
         first_name = request.form.get('first_name')
         last_name = request.form.get('last_name')
         email = request.form.get('email')
-        designation = request.form.get('designation')
-        department = request.form.get('department')
+        department_id = request.form.get('department')
+        designation_id = request.form.get('designation')
         phone_number = request.form.get('phone_number')
         date_of_birth = request.form.get('date_of_birth')
         date_of_joining = request.form.get('date_of_joining')
         address = request.form.get('address', '')
+        company_id = request.form.get('company')
+        role_id = request.form.get('role')
+        reporting_manager = request.form.get('reporting_manager')
+
+        if not all([first_name, last_name, email, department_id, 
+                   designation_id, phone_number, date_of_birth, date_of_joining, 
+                   company_id, role_id]):
+            flash('All required fields must be filled.', 'danger')
+            return redirect(url_for('edit_employee', employee_id=employee_id))
 
         try:
             with conn.cursor() as cur:
+                # Get the department and designation names
+                cur.execute("SELECT department_name FROM Department WHERE department_id = %s", (department_id,))
+                department_result = cur.fetchone()
+                if not department_result:
+                    flash('Invalid department selected.', 'danger')
+                    return redirect(url_for('edit_employee', employee_id=employee_id))
+
+                department_name = department_result[0]
+
+                # Get designation name
+                cur.execute("SELECT designation_name FROM DesignationMaster WHERE designation_id = %s", (designation_id,))
+                designation_result = cur.fetchone()
+                if not designation_result:
+                    flash('Invalid designation selected.', 'danger')
+                    return redirect(url_for('edit_employee', employee_id=employee_id))
+
+                designation_name = designation_result[0]
+
+                # Update employee data
                 cur.execute("""
-                    UPDATE Employee
-                    SET First_Name = %s, Last_Name = %s, Email = %s,
-                        Designation = %s, Department = %s, PhoneNumber = %s,
-                        DateOfBirth = %s, DateOfJoining = %s, Address = %s
+                    UPDATE Employee SET 
+                        First_Name = %s, 
+                        Last_Name = %s, 
+                        Email = %s,
+                        Designation = %s, 
+                        Department = %s, 
+                        PhoneNumber = %s,
+                        DateOfBirth = %s, 
+                        DateOfJoining = %s, 
+                        Address = %s,
+                        Company = %s,
+                        ReportingManager = %s
                     WHERE Employee_Id = %s
-                """, (first_name, last_name, email, designation, department,
-                      phone_number, date_of_birth, date_of_joining, address, employee_id))
+                """, (
+                    first_name, last_name, email,
+                    designation_name, department_name, phone_number,
+                    date_of_birth, date_of_joining, address,
+                    company_id, reporting_manager, employee_id
+                ))
+
+                # Update employee role
+                cur.execute("""
+                    SELECT COUNT(*) FROM EmployeeRoles 
+                    WHERE employee_id = %s
+                """, (employee_id,))
+                role_exists = cur.fetchone()[0] > 0
+
+                if role_exists:
+                    cur.execute("""
+                        UPDATE EmployeeRoles 
+                        SET company_id = %s, role_id = %s
+                        WHERE employee_id = %s
+                    """, (company_id, role_id, employee_id))
+                else:
+                    cur.execute("""
+                        INSERT INTO EmployeeRoles (employee_id, company_id, role_id)
+                        VALUES (%s, %s, %s)
+                    """, (employee_id, company_id, role_id))
+
                 conn.commit()
-            flash('Employee details updated successfully!', 'success')
-            return redirect(url_for('view_employees'))
+                flash('Employee details updated successfully!', 'success')
+                return redirect(url_for('view_employees'))
 
         except Exception as e:
+            conn.rollback()
             logging.error(f'Error updating employee: {e}')
             flash('An error occurred while updating employee details. Please try again.', 'danger')
         finally:
             conn.close()
 
-    # GET request: Fetch current employee data to populate the form
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM Employee WHERE Employee_Id = %s", (employee_id,))
-            employee = cur.fetchone()
-            if employee:
-                return render_template('edit_employee.html', 
-                                    employee=employee,
-                                    user_id=user_id,
-                                    show_forget_password=show_forget_password,
-                                    can_view_employees=can_view_employees,
-                                    can_register_employee=can_register_employee,
-                                    can_register_visitor=can_register_visitor,
-                                    can_register_combined=can_register_combined,
-                                    can_view_visitors=can_view_visitors,
-                                    can_view_users=can_view_users,
-                                    can_access_zone_requests=can_access_zone_requests,
-                                    can_access_visitor_settings=can_access_visitor_settings,
-                                    can_add_company=can_add_company,
-                                    can_add_department=can_add_department,
-                                    can_add_designation=can_add_designation,
-                                    can_add_role=can_add_role,
-                                    can_add_zone=can_add_zone,
-                                    can_add_zone_area=can_add_zone_area,
-                                    can_quick_register=can_quick_register,
-                                    can_access_role_access=can_access_role_access)
-            else:
-                flash('Employee not found.', 'danger')
-                return redirect(url_for('view_employees'))
+    # Prepare employee data for the template
+    employee_data = {
+        'employee_id': employee[0],
+        'first_name': employee[1],
+        'last_name': employee[2],
+        'email': employee[3],
+        'designation': employee[4],
+        'department': employee[5],
+        'phone_number': employee[6],
+        'date_of_birth': employee[7].strftime('%Y-%m-%d') if employee[7] else '',
+        'date_of_joining': employee[8].strftime('%Y-%m-%d') if employee[8] else '',
+        'date_of_leave': employee[9].strftime('%Y-%m-%d') if employee[9] else '',
+        'status': employee[10],
+        'address': employee[11],
+        'photo': employee[12],
+        'company': employee[13],
+        'reporting_manager': employee[14],
+        'role_id': employee[15],
+        'department_id': current_department_id,
+        'designation_id': current_designation_id
+    }
 
-    except Exception as e:
-        logging.error(f'Error fetching employee data: {e}')
-        flash('An error occurred while fetching employee details. Please try again.', 'danger')
-        return redirect(url_for('view_employees'))
+    return render_template('edit_employee.html', 
+                         employee=employee_data,
+                         companies=companies,
+                         roles=roles,
+                         departments=departments,
+                         designations=designations,
+                         managers=managers,
+                         user_id=user_id,
+                         photo_filename=photo_filename,
+                         show_forget_password=show_forget_password,
+                         can_view_employees=can_view_employees,
+                         can_register_employee=can_register_employee,
+                         can_register_visitor=can_register_visitor,
+                         can_register_combined=can_register_combined,
+                         can_view_visitors=can_view_visitors,
+                         can_view_users=can_view_users,
+                         can_access_zone_requests=can_access_zone_requests,
+                         can_access_visitor_settings=can_access_visitor_settings,
+                         can_add_company=can_add_company,
+                         can_add_department=can_add_department,
+                         can_add_designation=can_add_designation,
+                         can_add_role=can_add_role,
+                         can_add_zone=can_add_zone,
+                         can_add_zone_area=can_add_zone_area,
+                         can_quick_register=can_quick_register,
+                         can_access_role_access=can_access_role_access)
 
 @app.route('/register_visitor', methods=['GET', 'POST'])
 def register_visitor():
