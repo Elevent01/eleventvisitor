@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zone Area Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/4.6.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --primary-light: #E8F5E9;
+            --primary-dark: #1B5E20;
+            --accent-color: #8BC34A;
+            --text-dark: #263238;
+            --text-light: #546E7A;
+            --border-color: #C8E6C9;
+            --background-light: #F9FFF9;
+            --box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+        }
+
+        body {
+            background-color: #F5F7F5;
+            color: var(--text-dark);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 2px auto;
+            padding: 0;
+            background-color: transparent;
+            display: block !important;
+            visibility: visible !important;
+            position: relative;
+        }
+
+        /* Profile header styling */
+        .profile-header {
+            background-color: white;
+            border-radius: 8px 8px 0 0;
+            padding: 15px;
+            margin-bottom: 0; 
+            box-shadow: var(--box-shadow);
+            border-top: 4px solid #1B5E20;
+            border-left: 2px solid rgba(59, 100, 112, 0.255);
+            border-right: 2px solid rgba(59, 100, 112, 0.255);
+            border-bottom: none;
+            position: relative; 
+            z-index: 2; 
+        }
+
+        .profile-header::after {  
+            content: '';  
+            display: block;  
+            height: 2px; 
+            background-color: rgba(76, 175, 80, 0.2); 
+            margin: 0 15px; 
+            position: absolute;  
+            left: 0; 
+            bottom: -2px; 
+            right: 0; 
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Content area styling */
+        .zone-details {
+            border-left: 2px solid rgba(59, 100, 112, 0.255);
+            border-right: 2px solid rgba(59, 100, 112, 0.255);
+            border-bottom: 2px solid rgba(59, 100, 112, 0.255);
+            border-radius: 0 0 8px 8px;
+            padding: 15px;
+            margin-top: 0;
+            background-color: white;
+        }
+
+        /* Button styling */
+        #showZoneAreaModalBtn {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            padding: 6px 14px;
+            font-weight: 500;
+            font-size: 0.8rem;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        #showZoneAreaModalBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 12px rgba(0,0,0,0.15);
+        }
+
+        /* Show more button styling */
+        #showMoreBtn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 14px;
+            font-weight: 500;
+            font-size: 0.8rem;
+            margin-top: 15px;
+            display: block;
+            width: 100%;
+            text-align: center;
+        }
+
+        #showMoreBtn:hover {
+            background-color: var(--primary-dark);
+        }
+
+        /* Table styling */
+        table {
+            width: 100%;
+            margin: 15px 0 0 0;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        table, th, td {
+            border: 1px solid var(--border-color);
+        }
+
+        th, td {
+            padding: 6px 10px;
+            vertical-align: middle;
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--primary-dark);
+            background-color: var(--primary-light);
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* Flash messages */
+        .alert {
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 4px;
+            list-style-type: none;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* Back button */
+        .btn-back {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            background-color: #90A4AE;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 50px;
+            font-weight: 500;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            font-size: 0.8rem;
+            text-decoration: none;
+        }
+
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 12px rgba(0,0,0,0.15);
+            text-decoration: none;
+            color: white;
+        }
+
+        /* Form styling */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-control {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .btn-warning {
+            background-color: #ffc107;
+            color: black;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-warning:hover {
+            background-color: #e0a800;
+        }
+
+        /* Page title */
+        .page-title {
+            color: var(--primary-dark);
+            margin: 0;
+            padding: 0;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        /* Form step styling */
+        .form-step {
+            display: none;
+        }
+
+        .form-step.active {
+            display: block;
+        }
+
+        /* Hide additional rows by default */
+        .additional-row {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    {% extends "dashboard.html" %}
+    
+    {% block content %}
+    <div class="container">
+        <!-- Header section -->
+        <div class="profile-header">
+            <div class="header-content">
+                <h1 class="page-title">Zone Area Management</h1>
+                <button id="showZoneAreaModalBtn" class="btn">
+                    <i class="fas fa-plus-circle mr-2"></i>Add New Zone Area
+                </button>
+            </div>
+        </div>
+
+        <!-- Zone details section -->
+        <div class="zone-details">
+            <!-- Alert message area -->
+            <div id="alertMessage" class="alert" style="display: none;"></div>
+
+            <!-- Table to display zone area data -->
+            <table class="table" id="zoneAreasTable">
+                <thead>
+                    <tr>
+                        <th>Company Name</th>
+                        <th>Zones</th>
+                        <th>Zone Areas</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for company in companies %}
+                    <tr class="{{ 'additional-row' if loop.index > 3 else '' }}">
+                        <td>{{ company[1] }}</td>
+                        <td>
+                            <select class="form-control zone-select" 
+                                    data-company-id="{{ company[0] }}"
+                                    onchange="loadZoneAreas(this)">
+                                <option value="">Select Zone</option>
+                                {% for zone in zones %}
+                                <option value="{{ zone[0] }}">{{ zone[1] }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <select class="form-control zone-area-select" 
+                                    data-company-id="{{ company[0] }}"
+                                    disabled>
+                                <option value="">Select Zone First</option>
+                            </select>
+                        </td>
+                        <td>
+                            <button class="btn btn-warning" onclick="prepareEditZoneArea('{{ company[0] }}')">
+                                <i class="fas fa-edit mr-1"></i>Edit
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <!-- Show More Button -->
+            <button id="showMoreBtn">Show More Zone Areas</button>
+        </div>
+
+        <!-- Add Zone Area Modal -->
+        <div id="zoneAreaModal" class="modal">
+            <div class="modal-content">
+                <span class="close" id="closeModalBtn">&times;</span>
+                <h3>Add New Zone Area</h3>
+                <form id="zoneAreaForm" method="post">
+                    <div class="form-step active" id="step1">
+                        <div class="form-group">
+                            <label for="companyId">Select Company:</label>
+                            <select name="companyId" id="companyId" class="form-control" required>
+                                <option value="">Select a Company</option>
+                                {% for company in companies %}
+                                    <option value="{{ company[0] }}">{{ company[1] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-step" id="step2">
+                        <div class="form-group">
+                            <label for="companyZoneId">Select Company Zone:</label>
+                            <select name="companyZoneId" id="companyZoneId" class="form-control" required>
+                                <option value="">Select a Company Zone</option>
+                                {% for zone in zones %}
+                                    <option value="{{ zone[0] }}">{{ zone[1] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-step" id="step3">
+                        <div class="form-group">
+                            <label for="visitAreaName">Zone Area Name:</label>
+                            <input type="text" name="visitAreaName" id="visitAreaName" 
+                                   class="form-control" required 
+                                   placeholder="Enter Zone Area Name">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Zone Area</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Zone Area Modal -->
+        <div id="editZoneAreaModal" class="modal">
+            <div class="modal-content">
+                <span class="close" id="editCloseModalBtn">&times;</span>
+                <h3>Edit Zone Area</h3>
+                <form id="editZoneAreaForm" method="post">
+                    <input type="hidden" name="companyId" id="editCompanyId">
+                    
+                    <div class="form-group">
+                        <label for="editCompanyZone">Select Company Zone:</label>
+                        <select name="companyZoneId" id="editCompanyZone" class="form-control" required>
+                            <option value="">Select a Company Zone</option>
+                            {% for zone in zones %}
+                                <option value="{{ zone[0] }}">{{ zone[1] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editCurrentZoneArea">Current Zone Area:</label>
+                        <select name="currentZoneArea" id="editCurrentZoneArea" 
+                                class="form-control" required disabled>
+                            <option value="">Select Zone First</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editVisitAreaName">New Zone Area Name:</label>
+                        <input type="text" name="newVisitAreaName" id="editVisitAreaName" 
+                               class="form-control" required 
+                               placeholder="Enter New Zone Area Name">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Update Zone Area</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Back to Dashboard Button -->
+        <a href="{{ url_for('dashboard') }}" class="btn btn-back">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </a>
+    </div>
+    
+    <script>
+        // Utility functions
+        function showAlert(message, type) {
+            const alert = document.getElementById('alertMessage');
+            alert.textContent = message;
+            alert.className = `alert alert-${type}`;
+            alert.style.display = 'block';
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 3000);
+        }
+        
+        function showStep(stepNumber) {
+            document.querySelectorAll('.form-step').forEach(step => {
+                step.classList.remove('active');
+            });
+            document.getElementById(`step${stepNumber}`).classList.add('active');
+        }
+        
+        function refreshZoneAreas(companyId, zoneId) {
+            const selector = `.zone-area-select[data-company-id="${companyId}"]`;
+            const zoneAreaSelect = document.querySelector(selector);
+            
+            if (!zoneAreaSelect) return;
+        
+            fetch(`/get_zone_areas?company_id=${companyId}&zone_id=${zoneId}`)
+                .then(response => response.json())
+                .then(response => {
+                    if (!response.success) throw new Error(response.message);
+                    
+                    const data = response.data;
+                    zoneAreaSelect.innerHTML = '<option value="">Select Zone Area</option>';
+                    data.forEach(zoneArea => {
+                        const option = document.createElement('option');
+                        option.value = zoneArea[0];
+                        option.textContent = zoneArea[0];
+                        zoneAreaSelect.appendChild(option);
+                    });
+                    zoneAreaSelect.disabled = false;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showAlert(error.message || 'Failed to load zone areas', 'danger');
+                    zoneAreaSelect.innerHTML = '<option value="">Error loading zone areas</option>';
+                    zoneAreaSelect.disabled = true;
+                });
+        }
+
+        // Show more rows button functionality
+        document.getElementById('showMoreBtn').onclick = function() {
+            var additionalRows = document.getElementsByClassName('additional-row');
+            for (var i = 0; i < additionalRows.length; i++) {
+                additionalRows[i].style.display = 'table-row';
+            }
+            this.style.display = 'none';
+        };
+
+        // Modal functionality
+        const zoneAreaModal = document.getElementById('zoneAreaModal');
+        const editZoneAreaModal = document.getElementById('editZoneAreaModal');
+
+        // Show modals
+        document.getElementById('showZoneAreaModalBtn').onclick = () => {
+            zoneAreaModal.style.display = 'block';
+            showStep(1);
+            document.getElementById('zoneAreaForm').reset();
+        };
+
+        // Close buttons
+        document.getElementById('closeModalBtn').onclick = function() {
+            zoneAreaModal.style.display = 'none';
+        };
+
+        document.getElementById('editCloseModalBtn').onclick = function() {
+            editZoneAreaModal.style.display = 'none';
+        };
+
+        // Close on outside click
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        };
+
+        // Form step progression
+        document.getElementById('companyId').addEventListener('change', function() {
+            if (this.value) showStep(2);
+        });
+
+        document.getElementById('companyZoneId').addEventListener('change', function() {
+            if (this.value) showStep(3);
+        });
+
+        // Load zone areas when zone is selected
+        function loadZoneAreas(zoneSelect) {
+            const companyId = zoneSelect.dataset.companyId;
+            const zoneId = zoneSelect.value;
+            
+            if (zoneId) {
+                refreshZoneAreas(companyId, zoneId);
+            } else {
+                const zoneAreaSelect = zoneSelect.closest('tr')
+                    .querySelector('.zone-area-select');
+                zoneAreaSelect.innerHTML = '<option value="">Select Zone First</option>';
+                zoneAreaSelect.disabled = true;
+            }
+        }
+
+        // Edit zone area functionality
+        function prepareEditZoneArea(companyId) {
+            document.getElementById('editCompanyId').value = companyId;
+            document.getElementById('editCompanyZone').selectedIndex = 0;
+            document.getElementById('editCurrentZoneArea').innerHTML = 
+                '<option value="">Select Zone First</option>';
+            document.getElementById('editCurrentZoneArea').disabled = true;
+            document.getElementById('editVisitAreaName').value = '';
+            editZoneAreaModal.style.display = 'block';
+        }
+
+        // Handle zone selection in edit modal
+        document.getElementById('editCompanyZone').addEventListener('change', function() {
+            const companyId = document.getElementById('editCompanyId').value;
+            const zoneId = this.value;
+            const currentZoneAreaSelect = document.getElementById('editCurrentZoneArea');
+
+            if (zoneId) {
+                fetch(`/get_zone_areas?company_id=${companyId}&zone_id=${zoneId}`)
+                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.success) throw new Error(response.message);
+                        
+                        const data = response.data;
+                        currentZoneAreaSelect.innerHTML = 
+                            '<option value="">Select a Zone Area</option>';
+                        data.forEach(zoneArea => {
+                            const option = document.createElement('option');
+                            option.value = zoneArea[0];
+                            option.textContent = zoneArea[0];
+                            currentZoneAreaSelect.appendChild(option);
+                        });
+                        currentZoneAreaSelect.disabled = false;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showAlert(error.message || 'Failed to load zone areas', 'danger');
+                        currentZoneAreaSelect.innerHTML = 
+                            '<option value="">Error loading zone areas</option>';
+                        currentZoneAreaSelect.disabled = true;
+                    });
+            } else {
+                currentZoneAreaSelect.innerHTML = '<option value="">Select Zone First</option>';
+                currentZoneAreaSelect.disabled = true;
+            }
+        });
+
+        // Auto-populate edit form
+        document.getElementById('editCurrentZoneArea').addEventListener('change', function() {
+            document.getElementById('editVisitAreaName').value = this.value;
+        });
+
+        // Form submissions
+        document.getElementById('zoneAreaForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            try {
+                const response = await fetch('/add_zone_area', {
+                    method: 'POST',
+                    body: new FormData(this)
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Zone area added successfully', 'success');
+                    zoneAreaModal.style.display = 'none';
+                    this.reset();
+                    
+                    // Refresh the zone areas list
+                    const zoneSelect = document.querySelector(
+                        `.zone-select[data-company-id="${data.data.companyId}"]`
+                    );
+                    if (zoneSelect && zoneSelect.value === data.data.zoneId) {
+                        refreshZoneAreas(data.data.companyId, data.data.zoneId);
+                    }
+                } else {
+                    showAlert(data.message || 'Failed to add zone area', 'danger');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('An error occurred while adding zone area', 'danger');
+            }
+        });
+
+        document.getElementById('editZoneAreaForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            try {
+                const response = await fetch('/edit_zone_area', {
+                    method: 'POST',
+                    body: new FormData(this)
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('Zone area updated successfully', 'success');
+                    editZoneAreaModal.style.display = 'none';
+                    this.reset();
+                    
+                    // Refresh the zone areas list
+                    const zoneSelect = document.querySelector(
+                        `.zone-select[data-company-id="${data.data.companyId}"]`
+                    );
+                    if (zoneSelect && zoneSelect.value === data.data.zoneId) {
+                        refreshZoneAreas(data.data.companyId, data.data.zoneId);
+                    }
+                } else {
+                    showAlert(data.message || 'Failed to update zone area', 'danger');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showAlert('An error occurred while updating zone area', 'danger');
+            }
+        });
+    </script>
+    {% endblock %}
+</body>
+</html>

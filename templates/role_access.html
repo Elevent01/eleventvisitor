@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Role Access Management</title>
+    <style>
+      :root {
+    --primary-color: #4CAF50;
+    --primary-light: #E8F5E9;
+    --primary-dark: #1B5E20;
+    --accent-color: #8BC34A;
+    --text-dark: #263238;
+    --text-light: #546E7A;
+    --border-color: #C8E6C9;
+    --background-light: #F9FFF9;
+    --box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+}
+
+body {
+    background-color: #F5F7F5;
+    color: var(--text-dark);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+}
+
+.container {
+    max-width: 1100px;
+    margin: 2px auto;
+    padding: 0;
+    background-color: #F5FFF5;
+    display: block !important;
+    visibility: visible !important;
+    position: relative;
+}
+
+/* Profile header styling */
+.profile-header {
+    background-color: white;
+    border-radius: 8px 8px 0 0;
+    padding: 15px;
+    margin-bottom: 0; 
+    box-shadow: var(--box-shadow);
+    border-top: 4px solid #1B5E20 !important;
+    border-left: 2px solid rgba(59, 100, 112, 0.255) !important;
+    border-right: 2px solid rgba(59, 100, 112, 0.255) !important;
+    border-bottom: none;
+    position: relative; 
+    z-index: 2; 
+}
+
+.profile-header::after {  
+    content: '';  
+    display: block;  
+    height: 2px; 
+    background-color: rgba(76, 175, 80, 0.2); 
+    margin: 0 15px; 
+    position: absolute;  
+    left: 0; 
+    bottom: -2px; 
+    right: 0; 
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Role access content area styling */
+.role-access-details {
+    border-left: 2px solid rgba(59, 100, 112, 0.255);
+    border-right: 2px solid rgba(59, 100, 112, 0.255);
+    border-bottom: 2px solid rgba(59, 100, 112, 0.255);
+    border-radius: 0 0 8px 8px;
+    padding: 15px;
+    margin-top: 0;
+    background-color: white;
+}
+
+/* Button styling */
+.btn {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    padding: 6px 14px;
+    font-weight: 500;
+    font-size: 0.8rem;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 12px rgba(0,0,0,0.15);
+}
+
+/* Selection panel styling */
+.selection-panel {
+    margin-bottom: 8px;
+    padding: 6px 8px; 
+    border-radius: 6px; 
+    background-color: #F5FFF5;
+    border: 1px solid var(--border-color);
+    border-top: 4px solid #1B5E20; 
+    border-right:  2px solid rgba(59, 100, 112, 0.255); 
+    border-left: 2px solid rgba(59, 100, 112, 0.255); 
+    border-bottom: 2px solid rgba(59, 100, 112, 0.255); 
+}
+
+.selection-panel label {
+    color: #1B5E20; 
+    font-weight: 600;
+    display: block;
+    margin-bottom: 2px; 
+    font-size: 12px;
+    line-height: 1.2; 
+}
+
+/* Selection header with reset button - extra slim */
+.selection-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 5px; 
+}
+
+/* Style the reset button - smaller */
+#refreshButton {
+    background-color: gold;
+    color: #1B5E20;
+    border: 1px solid gold;
+    padding: 2px 8px; 
+    border-radius: 3px;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    font-size: 11px; 
+    height: 24px; 
+    line-height: 1;
+}
+
+#refreshButton:hover {
+    background-color: #FFD700;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Style for selection row background - minimal padding */
+#selectionRow {
+    background-color: #F5FFF5;
+    padding: 5px; 
+    border-radius: 4px;
+    margin-top: 3px;
+}
+
+/* Make select boxes extra slim */
+.form-control {
+    width: 100%;
+    padding: 2px 6px; /* Minimal padding */
+    height: 26px; /* Very short height */
+    font-size: 12px; /* Smaller font */
+    min-height: auto; /* Override any minimum height */
+}
+
+/* Tighter spacing in the grid */
+.row {
+    margin-right: -5px;
+    margin-left: -5px;
+}
+
+.col-md-5 {
+    padding-right: 5px;
+    padding-left: 5px;
+}
+
+/* Minimal space between elements */
+#companySelectionDiv {
+    margin-bottom: 5px; /* Minimal margin when stacked */
+}
+
+@media (min-width: 768px) {
+    #companySelectionDiv {
+        margin-bottom: 0;
+    }
+}
+
+/* Remove any extra space from Bootstrap's form groups if present */
+.form-group {
+    margin-bottom: 5px;
+}
+/* Form control styling */
+.form-control {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(76, 175, 80, 0.25);
+}
+
+.form-control:disabled {
+    background-color: #f1f1f1;
+}
+
+/* Permissions panel styling */
+.permissions-panel {
+    padding: 15px;
+    border-radius: 8px;
+    background-color: var(--background-light);
+    border: 1px solid var(--border-color);
+    border-top: 4px solid #e0ecc0; /* Added thick top border to match first file */
+}
+
+.permission-groups-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.permission-group {
+    background-color: white;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    width: calc(50% - 8px);
+    box-shadow: var(--box-shadow);
+}
+
+.permission-group h5 {
+    color: var(--primary-dark);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.permission-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.permission-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    min-width: 180px;
+    flex: 1 0 auto;
+}
+
+.permission-item span {
+    margin-left: 10px;
+    font-size: 14px;
+}
+
+.toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.4s;
+            border-radius: 24px;
+            border: 2px solid gold;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: #4CAF50;
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(16px);
+            background-color: white;
+        }
+        
+        input:not(:checked) + .toggle-slider {
+            background-color: #e74c3c;
+        }
+        
+        input:not(:checked) + .toggle-slider:before {
+            background-color: white;
+        }
+        
+        button {
+            background-color: #333;
+            color: gold;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s, color 0.3s;
+            border: 2px solid gold;
+            position: relative;
+            z-index: 10;
+        }
+        
+        button:hover {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: #4CAF50;
+        }
+        
+        .toggle-switch input:not(:checked) + .toggle-slider {
+            background-color: #e74c3c;
+        }
+
+/* Company select button styling */
+.company-select-btn {
+    margin-left: 8px;
+    background-color: var(--primary-light);
+    color: var(--primary-dark);
+    border: 1px solid var(--border-color);
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.company-select-btn:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* Save button wrapper */
+.save-button-wrapper {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 100;
+}
+
+.save-button-wrapper .btn {
+    padding: 8px 16px;
+    background-color: var(--primary-color);
+}
+
+.save-button-wrapper .btn:hover {
+    background-color: var(--primary-dark);
+}
+
+/* Row and column */
+.row {
+    display: flex;
+    flex-wrap: wrap;
+    margin-right: 0px !important;
+    margin-left: 0px !important;
+}
+
+.col-md-5 {
+    position: relative;
+    width: 100%;
+    padding-right: 15px;
+    padding-left: 15px;
+    flex: 0 0 41.666667%;
+    max-width: 41.666667%;
+}
+
+/* Modal styling */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 100;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 10% auto;
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    width: 50%;
+    max-width: 500px;
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+    color: black;
+    text-decoration: none;
+}
+
+/* Alert styles */
+.alert {
+    padding: 12px;
+    margin: 20px 0;
+    border-radius: 8px;
+    font-size: 16px;
+    display: none;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* Page title */
+.page-title {
+    color: var(--primary-dark);
+    margin: 0;
+    padding: 0;
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+/* Back button */
+.btn-back {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    background-color: #90A4AE;
+    color: white;
+    padding: 6px 14px;
+    border-radius: 50px;
+    font-weight: 500;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    font-size: 0.8rem;
+    text-decoration: none;
+}
+
+.btn-back:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 12px rgba(0,0,0,0.15);
+    text-decoration: none;
+    color: white;
+}
+    </style>
+</head>
+<body>
+    {% extends "dashboard.html" %}
+
+    {% block content %}
+    <div class="container">
+        <div class="role-access-container">
+            <!-- Company and Role Selection -->
+            <div class="selection-panel mb-4">
+                <div class="selection-header">
+                    <button id="refreshButton" class="btn btn-outline-secondary" onclick="refreshPage()">
+                        <i class="fas fa-sync-alt"></i> Reset
+                    </button>
+                </div>
+                <div class="row" id="selectionRow">
+                    <div class="col-md-5" id="companySelectionDiv">
+                        <label for="companySelect">Select Company:</label>
+                        <select class="form-control" id="companySelect" onchange="handleCompanyChange()">
+                            <option value="">Select a company...</option>
+                            {% for company in companies %}
+                            <option value="{{ company[0] }}">{{ company[1] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-5" id="roleSelectionDiv" style="display: none;">
+                        <label for="roleSelect">Select Role:</label>
+                        <select class="form-control" id="roleSelect" onchange="handleRoleChange()">
+                            <option value="">Select a role...</option>
+                            {% for role in roles %}
+                            <option value="{{ role[0] }}">{{ role[1] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+    
+            <!-- Permissions Panel -->
+            <div class="permissions-panel" style="display: none;">
+                <div class="permission-groups-container">
+                    <!-- Master Settings Section -->
+                    <div class="permission-group">
+                        <h5>Organization Setup & Management Master
+                            (For Admin)</h5>
+                        <div class="permission-items">
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canAddCompany">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Add Company</span>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canAddDepartment">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Add Department</span>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canAddDesignation">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Add Designation</span>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canAddRole">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Add Role</span>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canAddZone">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Add Zone</span>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canAddZoneArea">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Add Zone Area</span>
+                            </div>
+                        </div>
+                    </div>
+    
+                    <!-- Access Master Section -->
+                    <div class="permission-group">
+                        <h5>Role & User Mnagement Access (For Admin)</h5>
+                        <div class="permission-items">
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="showForgetPassword">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>
+                                    Prevent Forget Password of this user
+                                    (Turn It Off)</span>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canViewUsers">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Individual Users Access Page (This Page)</span>
+                                <button id="viewUserCompaniesBtn" class="company-select-btn">Select Companies</button>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canAccessVisitorSettings">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Visitor Checkout Settings Page</span>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canAccessRoleAccess">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Role Access</span>
+                            </div>
+                        </div>
+                    </div>
+    
+                    <!-- Employee Master Section -->
+                    <div class="permission-group">
+                        <h5>Employee Master</h5>
+                        <div class="permission-items">
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canViewEmployees">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>View All Employees Page</span>
+                                <button id="viewEmployeeCompaniesBtn" class="company-select-btn">Select Companies</button>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canRegisterEmployee">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Register Employee Page For All Companies</span>
+                            </div>
+                        </div>
+                    </div>
+    
+                    <!-- Operation Visitor Section -->
+                    <div class="permission-group">
+                        <h5>Operation Visitor</h5>
+                        <div class="permission-items">
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canQuickRegister">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Register visitor Page For User's Own Company</span>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canRegisterVisitor">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Register Visitor Page For Multiple Companies</span>
+                                <button id="registerVisitorCompaniesBtn" class="company-select-btn">Select Companies</button>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canRegisterCombined">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Check In-Out Visitor Page For Multiple Companies</span>
+                                <button id="combinedRegisterCompaniesBtn" class="company-select-btn">Select Companies</button>
+                            </div>
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canViewVisitors">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>View All Visitors</span>
+                                <button id="viewVisitorCompaniesBtn" class="company-select-btn">Select Companies</button>
+                            </div>
+                        </div>
+                    </div>
+    
+                    <!-- Zone Requests Section -->
+                    <div class="permission-group">
+                        <h5>Zone Requests</h5>
+                        <div class="permission-items">
+                            <div class="permission-item">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="canAccessZoneRequests">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <span>Zone Requests</span>
+                                <button id="zoneRequestCompaniesBtn" class="company-select-btn">Select Companies</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Save Button Fixed at Bottom Right -->
+            <div class="save-button-wrapper">
+                <button class="btn btn-primary" onclick="saveRoleAccess()">Save Permissions</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Zone Request Companies Modal -->
+    <div id="zoneRequestCompaniesModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeZoneRequestModalBtn">&times;</span>
+            <h3>Select Companies for Zone Request Access</h3>
+            <div id="zoneRequestCompaniesList">
+                <!-- Companies checkboxes will be dynamically loaded here -->
+            </div>
+            <div class="text-center mt-3">
+                <button class="btn btn-primary" id="saveZoneRequestCompaniesBtn">Save Companies</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- View User Companies Modal -->
+    <div id="viewUserCompaniesModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeViewUserModalBtn">&times;</span>
+            <h3>Select Companies for View Users Access</h3>
+            <div id="userCompaniesList">
+                <!-- Companies checkboxes will be dynamically loaded here -->
+            </div>
+            <div class="text-center mt-3">
+                <button class="btn btn-primary" id="saveViewUserCompaniesBtn">Save Companies</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- View Visitor Companies Modal -->
+    <div id="viewVisitorCompaniesModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeViewVisitorModalBtn">&times;</span>
+            <h3>Select Companies for View Visitors Access</h3>
+            <div id="companiesList">
+                <!-- Companies checkboxes will be dynamically loaded here -->
+            </div>
+            <div class="text-center mt-3">
+                <button class="btn btn-primary" id="saveViewVisitorCompaniesBtn">Save Companies</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- View Employee Companies Modal -->
+    <div id="viewEmployeeCompaniesModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeViewEmployeeModalBtn">&times;</span>
+            <h3>Select Companies for View Employees Access</h3>
+            <div id="employeeCompaniesList">
+                <!-- Companies checkboxes will be dynamically loaded here -->
+            </div>
+            <div class="text-center mt-3">
+                <button class="btn btn-primary" id="saveViewEmployeeCompaniesBtn">Save Companies</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Combined Register Companies Modal -->
+    <div id="combinedRegisterCompaniesModal" class="modal">
+        <div class="modal-content">
+            <span class="close" id="closeCombinedRegisterModalBtn">&times;</span>
+            <h3>Select Companies for Combined Register Access</h3>
+            <div id="combinedRegisterCompaniesList">
+                <!-- Companies checkboxes will be dynamically loaded here -->
+            </div>
+            <div class="text-center mt-3">
+                <button class="btn btn-primary" id="saveCombinedRegisterCompaniesBtn">Save Companies</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Register Visitor Companies Modal -->
+<div id="registerVisitorCompaniesModal" class="modal">
+    <div class="modal-content">
+        <span class="close" id="closeRegisterVisitorModalBtn">&times;</span>
+        <h3>Select Companies for Visitor Registration Access</h3>
+        <div id="registerVisitorCompaniesList">
+            <!-- Companies checkboxes will be dynamically loaded here -->
+        </div>
+        <div class="text-center mt-3">
+            <button class="btn btn-primary" id="saveRegisterVisitorCompaniesBtn">Save Companies</button>
+        </div>
+    </div>
+</div>
+    <script>
+    let currentCompanyId = null;
+    let currentRoleId = null;
+    let selectedViewVisitorCompanies = [];
+    let selectedCombinedRegisterCompanies = [];
+    let selectedViewEmployeeCompanies = [];
+    let selectedViewUserCompanies = [];
+    let selectedZoneRequestCompanies = [];
+    let selectedRegisterVisitorCompanies = [];
+    
+    // Register Visitor Companies functionality
+    document.getElementById('canRegisterVisitor').addEventListener('change', function() {
+        const registerVisitorBtn = document.getElementById('registerVisitorCompaniesBtn');
+        if (this.checked) {
+            registerVisitorBtn.disabled = false;
+        } else {
+            registerVisitorBtn.disabled = true;
+        }
+    });
+    
+    document.getElementById('registerVisitorCompaniesBtn').addEventListener('click', function() {
+        if (!currentCompanyId || !currentRoleId) {
+            alert('Please select both company and role first');
+            return;
+        }
+        openRegisterVisitorCompaniesModal();
+    });
+    
+    document.getElementById('closeRegisterVisitorModalBtn').addEventListener('click', function() {
+        document.getElementById('registerVisitorCompaniesModal').style.display = 'none';
+    });
+    
+    async function openRegisterVisitorCompaniesModal() {
+        try {
+            const response = await fetch(`/get_role_register_visitor_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const companiesList = document.getElementById('registerVisitorCompaniesList');
+                companiesList.innerHTML = '';
+                
+                data.companies.forEach(company => {
+                    const isChecked = data.selectedCompanies.includes(company);
+                    
+                    const companyDiv = document.createElement('div');
+                    companyDiv.className = 'form-check';
+                    companyDiv.innerHTML = `
+                        <input class="form-check-input register-visitor-company-checkbox" type="checkbox" id="register_visitor_company_${company}" 
+                               value="${company}" ${isChecked ? 'checked' : ''}>
+                        <label class="form-check-label" for="register_visitor_company_${company}">
+                            ${company}
+                        </label>
+                    `;
+                    companiesList.appendChild(companyDiv);
+                });
+                
+                document.getElementById('registerVisitorCompaniesModal').style.display = 'block';
+            } else {
+                throw new Error(data.message || 'Failed to load companies');
+            }
+        } catch (error) {
+            console.error('Error loading companies:', error);
+            alert('Error loading companies. Please try again.');
+        }
+    }
+    
+    document.getElementById('saveRegisterVisitorCompaniesBtn').addEventListener('click', async function() {
+        const checkboxes = document.querySelectorAll('.register-visitor-company-checkbox:checked');
+        const selectedCompanies = Array.from(checkboxes).map(cb => cb.value);
+        
+        const formData = new FormData();
+        formData.append('companyId', currentCompanyId);
+        formData.append('roleId', currentRoleId);
+        formData.append('companies', JSON.stringify(selectedCompanies));
+        
+        try {
+            const response = await fetch('/update_role_register_visitor_company_access', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Visitor Registration company access updated successfully!');
+                document.getElementById('registerVisitorCompaniesModal').style.display = 'none';
+                selectedRegisterVisitorCompanies = selectedCompanies;
+            } else {
+                throw new Error(data.message || 'Failed to update company access');
+            }
+        } catch (error) {
+            console.error('Error updating company access:', error);
+            alert('Error updating company access. Please try again.');
+        }
+    });
+    
+    // Zone Request Companies functionality
+    document.getElementById('canAccessZoneRequests').addEventListener('change', function() {
+        const zoneRequestBtn = document.getElementById('zoneRequestCompaniesBtn');
+        if (this.checked) {
+            zoneRequestBtn.disabled = false;
+        } else {
+            zoneRequestBtn.disabled = true;
+        }
+    });
+    
+    document.getElementById('zoneRequestCompaniesBtn').addEventListener('click', function() {
+        if (!currentCompanyId || !currentRoleId) {
+            alert('Please select both company and role first');
+            return;
+        }
+        openZoneRequestCompaniesModal();
+    });
+    
+    document.getElementById('closeZoneRequestModalBtn').addEventListener('click', function() {
+        document.getElementById('zoneRequestCompaniesModal').style.display = 'none';
+    });
+    
+    async function loadZoneRequestCompanies() {
+        try {
+            const response = await fetch(`/get_role_zone_request_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                selectedZoneRequestCompanies = data.selectedCompanies || [];
+            } else {
+                throw new Error(data.message || 'Failed to load zone request companies');
+            }
+        } catch (error) {
+            console.error('Error loading zone request companies:', error);
+        }
+    }
+    
+    async function openZoneRequestCompaniesModal() {
+        try {
+            const response = await fetch(`/get_role_zone_request_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const companiesList = document.getElementById('zoneRequestCompaniesList');
+                companiesList.innerHTML = '';
+                
+                data.companies.forEach(company => {
+                    const isChecked = data.selectedCompanies.includes(company);
+                    
+                    const companyDiv = document.createElement('div');
+                    companyDiv.className = 'form-check';
+                    companyDiv.innerHTML = `
+                        <input class="form-check-input zone-request-company-checkbox" type="checkbox" id="zone_request_company_${company}" 
+                               value="${company}" ${isChecked ? 'checked' : ''}>
+                        <label class="form-check-label" for="zone_request_company_${company}">
+                            ${company}
+                        </label>
+                    `;
+                    companiesList.appendChild(companyDiv);
+                });
+                
+                document.getElementById('zoneRequestCompaniesModal').style.display = 'block';
+            } else {
+                throw new Error(data.message || 'Failed to load companies');
+            }
+        } catch (error) {
+            console.error('Error loading companies:', error);
+            alert('Error loading companies. Please try again.');
+        }
+    }
+    
+    document.getElementById('saveZoneRequestCompaniesBtn').addEventListener('click', async function() {
+        const checkboxes = document.querySelectorAll('.zone-request-company-checkbox:checked');
+        const selectedCompanies = Array.from(checkboxes).map(cb => cb.value);
+        
+        const formData = new FormData();
+        formData.append('companyId', currentCompanyId);
+        formData.append('roleId', currentRoleId);
+        formData.append('companies', JSON.stringify(selectedCompanies));
+        
+        try {
+            const response = await fetch('/update_role_zone_request_company_access', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Zone Request company access updated successfully!');
+                document.getElementById('zoneRequestCompaniesModal').style.display = 'none';
+                selectedZoneRequestCompanies = selectedCompanies;
+            } else {
+                throw new Error(data.message || 'Failed to update company access');
+            }
+        } catch (error) {
+            console.error('Error updating company access:', error);
+            alert('Error updating company access. Please try again.');
+        }
+    });
+    
+    function refreshPage() {
+        // Reset the entire page state
+        window.location.reload();
+    }
+    
+    document.getElementById('viewUserCompaniesBtn').addEventListener('click', function() {
+        if (!currentCompanyId || !currentRoleId) {
+            alert('Please select both company and role first');
+            return;
+        }
+        openViewUserCompaniesModal();
+    });
+    
+    document.getElementById('closeViewUserModalBtn').addEventListener('click', function() {
+        document.getElementById('viewUserCompaniesModal').style.display = 'none';
+    });
+    
+    async function loadViewUserCompanies() {
+        try {
+            const response = await fetch(`/get_role_user_view_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                selectedViewUserCompanies = data.selectedCompanies || [];
+            } else {
+                throw new Error(data.message || 'Failed to load view user companies');
+            }
+        } catch (error) {
+            console.error('Error loading view user companies:', error);
+        }
+    }
+    
+    async function openViewUserCompaniesModal() {
+        try {
+            const response = await fetch(`/get_role_user_view_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const companiesList = document.getElementById('userCompaniesList');
+                companiesList.innerHTML = '';
+                
+                data.companies.forEach(company => {
+                    const isChecked = data.selectedCompanies.includes(company);
+                    
+                    const companyDiv = document.createElement('div');
+                    companyDiv.className = 'form-check';
+                    companyDiv.innerHTML = `
+                        <input class="form-check-input user-company-checkbox" type="checkbox" id="user_company_${company}" 
+                               value="${company}" ${isChecked ? 'checked' : ''}>
+                        <label class="form-check-label" for="user_company_${company}">
+                            ${company}
+                        </label>
+                    `;
+                    companiesList.appendChild(companyDiv);
+                });
+                
+                document.getElementById('viewUserCompaniesModal').style.display = 'block';
+            } else {
+                throw new Error(data.message || 'Failed to load companies');
+            }
+        } catch (error) {
+            console.error('Error loading companies:', error);
+            alert('Error loading companies. Please try again.');
+        }
+    }
+    
+    document.getElementById('saveViewUserCompaniesBtn').addEventListener('click', async function() {
+        const checkboxes = document.querySelectorAll('.user-company-checkbox:checked');
+        const selectedCompanies = Array.from(checkboxes).map(cb => cb.value);
+        
+        const formData = new FormData();
+        formData.append('companyId', currentCompanyId);
+        formData.append('roleId', currentRoleId);
+        formData.append('companies', JSON.stringify(selectedCompanies));
+        
+        try {
+            const response = await fetch('/update_role_user_view_company_access', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(`View User company access updated successfully! ${data.affected_users} users were updated.`);
+                document.getElementById('viewUserCompaniesModal').style.display = 'none';
+                selectedViewUserCompanies = selectedCompanies;
+            } else {
+                throw new Error(data.message || 'Failed to update company access');
+            }
+        } catch (error) {
+            console.error('Error updating company access:', error);
+            alert('Error updating company access. Please try again.');
+        }
+    });
+    
+    // View Employee Companies Modal
+    document.getElementById('viewEmployeeCompaniesBtn').addEventListener('click', function() {
+        if (!currentCompanyId || !currentRoleId) {
+            alert('Please select both company and role first');
+            return;
+        }
+        openViewEmployeeCompaniesModal();
+    });
+    
+    document.getElementById('closeViewEmployeeModalBtn').addEventListener('click', function() {
+        document.getElementById('viewEmployeeCompaniesModal').style.display = 'none';
+    });
+    
+    async function loadViewEmployeeCompanies() {
+        try {
+            const response = await fetch(`/get_role_employee_view_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                selectedViewEmployeeCompanies = data.selectedCompanies || [];
+            } else {
+                throw new Error(data.message || 'Failed to load view employee companies');
+            }
+        } catch (error) {
+            console.error('Error loading view employee companies:', error);
+        }
+    }
+    
+    async function openViewEmployeeCompaniesModal() {
+        try {
+            const response = await fetch(`/get_role_employee_view_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const companiesList = document.getElementById('employeeCompaniesList');
+                companiesList.innerHTML = '';
+                
+                data.companies.forEach(company => {
+                    const isChecked = data.selectedCompanies.includes(company);
+                    
+                    const companyDiv = document.createElement('div');
+                    companyDiv.className = 'form-check';
+                    companyDiv.innerHTML = `
+                        <input class="form-check-input employee-company-checkbox" type="checkbox" id="employee_company_${company}" 
+                               value="${company}" ${isChecked ? 'checked' : ''}>
+                        <label class="form-check-label" for="employee_company_${company}">
+                            ${company}
+                        </label>
+                    `;
+                    companiesList.appendChild(companyDiv);
+                });
+                
+                document.getElementById('viewEmployeeCompaniesModal').style.display = 'block';
+            } else {
+                throw new Error(data.message || 'Failed to load companies');
+            }
+        } catch (error) {
+            console.error('Error loading companies:', error);
+            alert('Error loading companies. Please try again.');
+        }
+    }
+    
+    document.getElementById('saveViewEmployeeCompaniesBtn').addEventListener('click', async function() {
+        const checkboxes = document.querySelectorAll('.employee-company-checkbox:checked');
+        const selectedCompanies = Array.from(checkboxes).map(cb => cb.value);
+        
+        const formData = new FormData();
+        formData.append('companyId', currentCompanyId);
+        formData.append('roleId', currentRoleId);
+        formData.append('companies', JSON.stringify(selectedCompanies));
+        
+        try {
+            const response = await fetch('/update_role_employee_view_company_access', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert(`View Employee company access updated successfully! ${data.affected_users} users were updated.`);
+                document.getElementById('viewEmployeeCompaniesModal').style.display = 'none';
+                selectedViewEmployeeCompanies = selectedCompanies;
+            } else {
+                throw new Error(data.message || 'Failed to update company access');
+            }
+        } catch (error) {
+            console.error('Error updating company access:', error);
+            alert('Error updating company access. Please try again.');
+        }
+    });
+    
+    function handleCompanyChange() {
+        const companySelect = document.getElementById('companySelect');
+        const roleSelectionDiv = document.getElementById('roleSelectionDiv');
+        const permissionsPanel = document.querySelector('.permissions-panel');
+        
+        currentCompanyId = companySelect.value;
+        currentRoleId = null;
+        
+        if (!currentCompanyId) {
+            roleSelectionDiv.style.display = 'none';
+            permissionsPanel.style.display = 'none';
+            return;
+        }
+        
+        // Disable company selection after choosing
+        companySelect.disabled = true;
+        
+        // Show role selection
+        roleSelectionDiv.style.display = 'block';
+    }
+    
+    function handleRoleChange() {
+        const roleSelect = document.getElementById('roleSelect');
+        const permissionsPanel = document.querySelector('.permissions-panel');
+        const saveButtonWrapper = document.querySelector('.save-button-wrapper');
+        
+        currentRoleId = roleSelect.value;
+        
+        if (!currentRoleId) {
+            permissionsPanel.style.display = 'none';
+            saveButtonWrapper.style.display = 'none';
+            return;
+        }
+        
+        // Disable role selection after choosing
+        roleSelect.disabled = true;
+        
+        // Load role access
+        loadRoleAccess();
+        
+        // Show save button when role is selected
+        saveButtonWrapper.style.display = 'block';
+    }
+    
+    // We also need to hide the save button initially
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelector('.save-button-wrapper').style.display = 'none';
+        
+        // Initially disable the zone request button
+        document.getElementById('zoneRequestCompaniesBtn').disabled = true;
+        
+        // Initially disable the register visitor button
+        document.getElementById('registerVisitorCompaniesBtn').disabled = true;
+    });
+    
+    async function loadRoleAccess() {
+        try {
+            const response = await fetch(`/api/role_access/get?company_id=${currentCompanyId}&role_id=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (response.ok) {
+                document.querySelector('.permissions-panel').style.display = 'block';
+                
+                Object.keys(data).forEach(key => {
+                    const element = document.getElementById(key);
+                    if (element) {
+                        element.checked = data[key];
+                    }
+                });
+                
+                // Update Zone Request button status
+                const zoneRequestBtn = document.getElementById('zoneRequestCompaniesBtn');
+                if (document.getElementById('canAccessZoneRequests') && document.getElementById('canAccessZoneRequests').checked) {
+                    zoneRequestBtn.disabled = false;
+                } else {
+                    zoneRequestBtn.disabled = true;
+                }
+                
+                // Update Register Visitor button status
+                const registerVisitorBtn = document.getElementById('registerVisitorCompaniesBtn');
+                if (document.getElementById('canRegisterVisitor') && document.getElementById('canRegisterVisitor').checked) {
+                    registerVisitorBtn.disabled = false;
+                } else {
+                    registerVisitorBtn.disabled = true;
+                }
+                
+                // Load companies for all access types
+                loadViewVisitorCompanies();
+                loadCombinedRegisterCompanies();
+                loadViewEmployeeCompanies();
+                loadViewUserCompanies();
+                loadZoneRequestCompanies();
+                loadRegisterVisitorCompanies();
+            } else {
+                throw new Error(data.error || 'Failed to load role access');
+            }
+        } catch (error) {
+            console.error('Error loading role access:', error);
+            alert('Error loading role permissions. Please try again.');
+        }
+    }
+    
+    async function loadRegisterVisitorCompanies() {
+        try {
+            const response = await fetch(`/get_role_register_visitor_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                selectedRegisterVisitorCompanies = data.selectedCompanies || [];
+            } else {
+                throw new Error(data.message || 'Failed to load register visitor companies');
+            }
+        } catch (error) {
+            console.error('Error loading register visitor companies:', error);
+        }
+    }
+    
+    async function loadViewVisitorCompanies() {
+        try {
+            const response = await fetch(`/get_role_visitor_view_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                selectedViewVisitorCompanies = data.selectedCompanies || [];
+            } else {
+                throw new Error(data.message || 'Failed to load view visitor companies');
+            }
+        } catch (error) {
+            console.error('Error loading view visitor companies:', error);
+        }
+    }
+    
+    async function loadCombinedRegisterCompanies() {
+        try {
+            const response = await fetch(`/get_role_combined_register_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                selectedCombinedRegisterCompanies = data.selectedCompanies || [];
+            } else {
+                throw new Error(data.message || 'Failed to load combined register companies');
+            }
+        } catch (error) {
+            console.error('Error loading combined register companies:', error);
+        }
+    }
+    
+    async function saveRoleAccess() {
+        if (!currentCompanyId || !currentRoleId) {
+            alert('Please select both company and role');
+            return;
+        }
+        
+        const permissions = {
+            company_id: currentCompanyId,
+            role_id: currentRoleId,
+            showForgetPassword: document.getElementById('showForgetPassword').checked,
+            canViewEmployees: document.getElementById('canViewEmployees').checked,
+            canRegisterEmployee: document.getElementById('canRegisterEmployee').checked,
+            canRegisterVisitor: document.getElementById('canRegisterVisitor').checked,
+            canRegisterCombined: document.getElementById('canRegisterCombined').checked,
+            canViewVisitors: document.getElementById('canViewVisitors').checked,
+            canViewUsers: document.getElementById('canViewUsers').checked,
+            canAccessZoneRequests: document.getElementById('canAccessZoneRequests').checked,
+            canAccessVisitorSettings: document.getElementById('canAccessVisitorSettings').checked,
+            canAddCompany: document.getElementById('canAddCompany').checked,
+            canAddDepartment: document.getElementById('canAddDepartment').checked,
+            canAddDesignation: document.getElementById('canAddDesignation').checked,
+            canAddRole: document.getElementById('canAddRole').checked,
+            canAddZone: document.getElementById('canAddZone').checked,
+            canAddZoneArea: document.getElementById('canAddZoneArea').checked,
+            canQuickRegister: document.getElementById('canQuickRegister').checked,
+            canAccessRoleAccess: document.getElementById('canAccessRoleAccess').checked,
+            registerVisitorCompanies: selectedRegisterVisitorCompanies,
+            viewVisitorCompanies: selectedViewVisitorCompanies,
+            combinedRegisterCompanies: selectedCombinedRegisterCompanies,
+            viewEmployeeCompanies: selectedViewEmployeeCompanies,
+            viewUserCompanies: selectedViewUserCompanies,
+            zoneRequestCompanies: selectedZoneRequestCompanies
+        };
+    
+        try {
+            const response = await fetch('/role_access', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(permissions)
+            });
+    
+            const result = await response.json();
+            
+            if (response.ok) {
+                alert('Role permissions saved successfully!');
+            } else {
+                throw new Error(result.error || 'Failed to save role access');
+            }
+        } catch (error) {
+            console.error('Error saving role access:', error);
+            alert('Error saving role permissions. Please try again.');
+        }
+    }
+    
+    // Combined Register Companies Modal
+    document.getElementById('combinedRegisterCompaniesBtn').addEventListener('click', function() {
+        if (!currentCompanyId || !currentRoleId) {
+            alert('Please select both company and role first');
+            return;
+        }
+        openCombinedRegisterCompaniesModal();
+    });
+    
+    document.getElementById('closeCombinedRegisterModalBtn').addEventListener('click', function() {
+        document.getElementById('combinedRegisterCompaniesModal').style.display = 'none';
+    });
+    
+    async function openCombinedRegisterCompaniesModal() {
+        try {
+            const response = await fetch(`/get_role_combined_register_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const companiesList = document.getElementById('combinedRegisterCompaniesList');
+                companiesList.innerHTML = '';
+                
+                data.companies.forEach(company => {
+                    const isChecked = data.selectedCompanies.includes(company);
+                    
+                    const companyDiv = document.createElement('div');
+                    companyDiv.className = 'form-check';
+                    companyDiv.innerHTML = `
+                        <input class="form-check-input combined-register-company-checkbox" type="checkbox" id="combined_register_company_${company}" 
+                               value="${company}" ${isChecked ? 'checked' : ''}>
+                        <label class="form-check-label" for="combined_register_company_${company}">
+                            ${company}
+                        </label>
+                    `;
+                    companiesList.appendChild(companyDiv);
+                });
+                
+                document.getElementById('combinedRegisterCompaniesModal').style.display = 'block';
+            } else {
+                throw new Error(data.message || 'Failed to load companies');
+            }
+        } catch (error) {
+            console.error('Error loading companies:', error);
+            alert('Error loading companies. Please try again.');
+        }
+    }
+    
+    // View Visitor Companies Modal
+    document.getElementById('viewVisitorCompaniesBtn').addEventListener('click', function() {
+        if (!currentCompanyId || !currentRoleId) {
+            alert('Please select both company and role first');
+            return;
+        }
+        openViewVisitorCompaniesModal();
+    });
+    
+    document.getElementById('closeViewVisitorModalBtn').addEventListener('click', function() {
+        document.getElementById('viewVisitorCompaniesModal').style.display = 'none';
+    });
+    
+    async function openViewVisitorCompaniesModal() {
+        try {
+            const response = await fetch(`/get_role_visitor_view_companies?companyId=${currentCompanyId}&roleId=${currentRoleId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const companiesList = document.getElementById('companiesList');
+                companiesList.innerHTML = '';
+                
+                data.companies.forEach(company => {
+                    const isChecked = data.selectedCompanies.includes(company);
+                    
+                    const companyDiv = document.createElement('div');
+                    companyDiv.className = 'form-check';
+                    companyDiv.innerHTML = `
+                        <input class="form-check-input company-checkbox" type="checkbox" id="company_${company}" 
+                               value="${company}" ${isChecked ? 'checked' : ''}>
+                        <label class="form-check-label" for="company_${company}">
+                            ${company}
+                        </label>
+                    `;
+                    companiesList.appendChild(companyDiv);
+                });
+                
+                document.getElementById('viewVisitorCompaniesModal').style.display = 'block';
+            } else {
+                throw new Error(data.message || 'Failed to load companies');
+            }
+        } catch (error) {
+            console.error('Error loading companies:', error);
+            alert('Error loading companies. Please try again.');
+        }
+    }
+    
+    document.getElementById('saveCombinedRegisterCompaniesBtn').addEventListener('click', async function() {
+        const checkboxes = document.querySelectorAll('.combined-register-company-checkbox:checked');
+        const selectedCompanies = Array.from(checkboxes).map(cb => cb.value);
+        
+        const formData = new FormData();
+        formData.append('companyId', currentCompanyId);
+        formData.append('roleId', currentRoleId);
+        formData.append('companies', JSON.stringify(selectedCompanies));
+        
+        try {
+            const response = await fetch('/update_role_combined_register_company_access', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Combined Register company access updated successfully!');
+                document.getElementById('combinedRegisterCompaniesModal').style.display = 'none';
+                selectedCombinedRegisterCompanies = selectedCompanies;
+            } else {
+                throw new Error(data.message || 'Failed to update company access');
+            }
+        } catch (error) {
+            console.error('Error updating company access:', error);
+            alert('Error updating company access. Please try again.');
+        }
+    });
+    
+    document.getElementById('saveViewVisitorCompaniesBtn').addEventListener('click', async function() {
+        const checkboxes = document.querySelectorAll('.company-checkbox:checked');
+        const selectedCompanies = Array.from(checkboxes).map(cb => cb.value);
+        
+        const formData = new FormData();
+        formData.append('companyId', currentCompanyId);
+        formData.append('roleId', currentRoleId);
+        formData.append('companies', JSON.stringify(selectedCompanies));
+        
+        try {
+            const response = await fetch('/update_role_visitor_view_company_access', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('View Visitor company access updated successfully!');
+                document.getElementById('viewVisitorCompaniesModal').style.display = 'none';
+                selectedViewVisitorCompanies = selectedCompanies;
+            } else {
+                throw new Error(data.message || 'Failed to update company access');
+            }
+        } catch (error) {
+            console.error('Error updating company access:', error);
+            alert('Error updating company access. Please try again.');
+        }
+    });
+    
+    // Close modals when clicking outside
+    window.onclick = function(event) {
+        if (event.target.classList.contains('modal')) {
+            event.target.style.display = 'none';
+        }
+    };
+    </script>
+    {% endblock %}
+</body>
+</html>

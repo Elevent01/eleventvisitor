@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Employee</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <style>
+:root {
+    --primary-color: #4CAF50;
+    --primary-light: #E8F5E9;
+    --primary-dark: #1B5E20;
+    --accent-color: #8BC34A;
+    --text-dark: #263238;
+    --text-light: #546E7A;
+    --border-color: #C8E6C9;
+    --background-light: #F9FFF9;
+    --box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+    --light-green-border: rgba(76, 175, 80, 0.3); /* Light green for borders */
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: #F5F7F5;
+    color: var(--text-dark);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.main-container {
+    max-width: 1100px;
+    margin: 2px auto;
+    padding: 0px;
+    background-color: transparent;
+    display: block !important;
+    visibility: visible !important;
+    position: relative;
+}
+
+/* First form section with thick green top border */
+#personal-info {
+    background-color: white;
+    padding: 15px;
+    margin: 0 0 0 0;
+    border-radius: 8px 8px 0 0;
+    border-top: 4px solid #1B5E20; /* Thick green line only for the first section */
+    border-left: 2px solid rgba(59, 100, 112, 0.255);
+    border-right: 2px solid rgba(59, 100, 112, 0.255);
+    border-bottom: none;
+    position: relative;
+    z-index: 2;
+    margin-bottom: 5px;
+}
+
+/* Other form sections without the thick top border */
+.form-section:not(#personal-info) {
+    background-color: white;
+    padding: 15px;
+    margin: 0 0 0 0;
+    border-left: 2px solid rgba(59, 100, 112, 0.255);
+    border-right: 2px solid rgba(59, 100, 112, 0.255);
+    border-bottom: none;
+    position: relative;
+    z-index: 2;
+    margin-bottom: 5px;
+    border-top: 1px solid var(--light-green-border); /* Light green top border for other sections */
+}
+
+.form-section::after {  
+    content: '';  
+    display: block;  
+    height: 2px; 
+    background-color: var(--light-green-border); /* Lighter green for the line after sections */
+    margin: 0 15px; 
+    position: absolute;  
+    left: 0; 
+    bottom: -2px; 
+    right: 0; 
+}
+
+.section-title {
+    color: var(--text-dark);
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 4.1px;
+    margin-bottom: 10px;
+    font-size: 1rem;
+}
+
+.form-section .row {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 50px;
+}
+
+.form-section .col-md-6 {
+    flex: 0 0 auto;
+    width: 200px;
+}
+
+.form-group {
+    margin-bottom: 5px;
+}
+
+.form-group label {
+    font-weight: 500;
+    color: var(--text-dark);
+    margin-bottom: 3px;
+    display: block;
+    font-size: 0.8rem;
+}
+
+.form-control {
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 8px;
+    font-size: 0.9rem;
+}
+
+.required-field::after {
+    content: "*";
+    color: #e74c3c;
+    margin-left: 4px;
+}
+
+.error-feedback {
+    color: #e74c3c;
+    font-size: 0.7rem;
+    margin-top: 2px;
+    display: none;
+}
+
+.fixed-bottom-buttons {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 5px;
+    background-color: rgb(255, 255, 255);
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.btn {
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    border: none;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.btn-secondary {
+    background-color: #90A4AE;
+    color: white;
+    border: none;
+}
+
+.btn-secondary:hover {
+    background-color: #607D8B;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-dark);
+}
+
+.form-section .row::-webkit-scrollbar {
+    height: 6px;
+}
+
+.form-section .row::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.form-section .row::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+}
+
+.form-section .row::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.submit-section {
+    background-color: white;
+    padding: 10px;
+    text-align: right;
+    border-left: 2px solid rgba(59, 100, 112, 0.255);
+    border-right: 2px solid rgba(59, 100, 112, 0.255);
+    border-bottom: 2px solid rgba(59, 100, 112, 0.255);
+    border-radius: 0 0 8px 8px;
+}
+
+.btn-back {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-back:hover {
+    background-color: var(--primary-dark);
+}
+    </style>
+</head>
+<body>
+    {% extends "dashboard.html" %}
+
+    {% block content %}
+    <div class="container main-container">
+        <form id="employee-form" action="/register_employee" method="POST" class="needs-validation" novalidate enctype="multipart/form-data">
+            <!-- Personal Information Section -->
+            <div class="form-section" id="personal-info">
+                <h3 class="section-title">Personal Information</h3>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="first_name">First Name</label>
+                            <input type="text" class="form-control" id="first_name" name="first_name" required>
+                            <div class="error-feedback">Please enter first name</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="last_name">Last Name</label>
+                            <input type="text" class="form-control" id="last_name" name="last_name" required>
+                            <div class="error-feedback">Please enter last name</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="email">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                            <div class="error-feedback">Please enter a valid email address</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="phone_number">Phone Number</label>
+                            <input type="tel" class="form-control" id="phone_number" name="phone_number" required>
+                            <div class="error-feedback">Please enter a valid phone number</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Company Details Section -->
+            <div class="form-section">
+                <h3 class="section-title">Company Details</h3>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="company">Company</label>
+                            <select id="company" name="company" class="form-control" required>
+                                <option value="">Select Company</option>
+                                {% for company in companies %}
+                                    <option value="{{ company[0] }}">{{ company[1] }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="error-feedback">Please select a company</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="employee_id">Employee ID</label>
+                            <input type="text" class="form-control" id="employee_id" name="employee_id" required>
+                            <div class="error-feedback">Please enter employee ID</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="department">Department</label>
+                            <select id="department" name="department" class="form-control" required disabled>
+                                <option value="">Select Department</option>
+                            </select>
+                            <div class="error-feedback">Please select department</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="designation">Designation</label>
+                            <select id="designation" name="designation" class="form-control" required disabled>
+                                <option value="">Select Designation</option>
+                            </select>
+                            <div class="error-feedback">Please select designation</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Details Section -->
+            <div class="form-section">
+                <h3 class="section-title">Additional Details</h3>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="date_of_birth">Date of Birth</label>
+                            <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" required>
+                            <div class="error-feedback">Please select date of birth</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="date_of_joining">Date of Joining</label>
+                            <input type="date" class="form-control" id="date_of_joining" name="date_of_joining" required>
+                            <div class="error-feedback">Please select date of joining</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <textarea class="form-control" id="address" name="address"></textarea>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="required-field" for="role">Role</label>
+                            <select id="role" name="role" class="form-control" required disabled>
+                                <option value="">Select Role</option>
+                            </select>
+                            <div class="error-feedback">Please select a role</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit Section -->
+            <div class="submit-section">
+                <button type="submit" class="btn btn-primary">Register Employee</button>
+            </div>
+        </form>
+        
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <ul class="alert alert-info">
+                    {% for message in messages %}
+                        <li>{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+    </div>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-back" style="position: fixed; left: 20px; bottom: 20px; background-color: #007bff; color: white; padding: 10px 20px; border-radius: 5px;">Back to Dashboard</a>
+    <script>
+       document.addEventListener('DOMContentLoaded', function() {
+    const companySelect = document.getElementById('company');
+    const roleSelect = document.getElementById('role');
+    const departmentSelect = document.getElementById('department');
+    const designationSelect = document.getElementById('designation');
+
+    // Clear and disable dropdowns
+    function clearSelects() {
+        roleSelect.innerHTML = '<option value="">Select Role</option>';
+        roleSelect.disabled = true;
+        departmentSelect.innerHTML = '<option value="">Select Department</option>';
+        departmentSelect.disabled = true;
+        designationSelect.innerHTML = '<option value="">Select Designation</option>';
+        designationSelect.disabled = true;
+    }
+
+    // Handle company selection
+    companySelect.addEventListener('change', function() {
+        const companyId = this.value;
+        clearSelects();
+
+        if (companyId) {
+            // Load roles
+            fetch(`/get_company_roles/${companyId}`)
+                .then(response => response.json())
+                .then(data => {
+                    roleSelect.innerHTML = '<option value="">Select Role</option>';
+                    data.forEach(role => {
+                        roleSelect.innerHTML += `<option value="${role.id}">${role.name}</option>`;
+                    });
+                    roleSelect.disabled = false;
+                })
+                .catch(error => console.error('Error:', error));
+
+            // Load departments
+            fetch(`/get_departments/${companyId}`)
+                .then(response => response.json())
+                .then(data => {
+                    departmentSelect.innerHTML = '<option value="">Select Department</option>';
+                    data.forEach(dept => {
+                        departmentSelect.innerHTML += `<option value="${dept.id}">${dept.name}</option>`;
+                    });
+                    departmentSelect.disabled = false;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    });
+
+    // Handle department selection
+    departmentSelect.addEventListener('change', function() {
+        const departmentId = this.value;
+        designationSelect.innerHTML = '<option value="">Select Designation</option>';
+        designationSelect.disabled = true;
+
+        if (departmentId) {
+            fetch(`/get_designations/${departmentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    designationSelect.innerHTML = '<option value="">Select Designation</option>';
+                    data.forEach(desig => {
+                        designationSelect.innerHTML += `<option value="${desig.id}">${desig.name}</option>`;
+                    });
+                    designationSelect.disabled = false;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    });
+});
+        
+        </script>
+    {% endblock %}
+</body>
+</html>

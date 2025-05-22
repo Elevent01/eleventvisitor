@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Zone Area</title>
+</head>
+<body>
+    {% extends "dashboard.html" %}
+
+    {% block content %}
+    <div class="container main-container">
+        <h2 class="mb-4">Edit Zone Area</h2>
+        
+        <form method="POST" action="{{ url_for('edit_zone_area', zone_area_id=zone_area[0]) }}">
+            <select name="companyZoneId" id="companyZoneId">
+                {% for zone in zones %}
+                    <option value="{{ zone[0] }}" {% if zone[0] == current_zone[0] %}selected{% endif %}>{{ zone[1] }}</option>
+                {% endfor %}
+            </select>
+        
+            <input type="text" name="visitAreaName" value="{{ zone_area[2] }}" required />
+        
+            <button type="submit">Update Zone Area</button>
+        </form>
+    </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Optional: Add client-side validation
+        document.getElementById('editZoneAreaForm').addEventListener('submit', function(e) {
+            const zoneSelect = document.getElementById('companyZoneId');
+            const areaNameInput = document.getElementById('visitAreaName');
+            
+            if (!zoneSelect.value) {
+                e.preventDefault();
+                alert('Please select a company zone.');
+            }
+            
+            if (!areaNameInput.value.trim()) {
+                e.preventDefault();
+                alert('Please enter a zone area name.');
+            }
+        });
+    });
+    </script>
+    {% endblock %}
+</body>
+</html>
