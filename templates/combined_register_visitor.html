@@ -1197,7 +1197,7 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
     // First check if this is a "No Visit" status
     if (hasNoVisitStatus(visitorId)) {
         alert('Photo upload is not allowed for appointments marked as "No Visit"');
-        event.target.value = ''; // Clear the file input
+        event.target.value = '';
         return;
     }
 
@@ -1212,78 +1212,283 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
     if (!file) return;
 
     const formData = new FormData();
-    formData.append('photo', file);
+    formData.append('visitor_photo', file);
     formData.append('appointment_id', appointmentId);
-    
-    fetch('/upload_visitor_photo', { 
-        method: 'POST', 
-        body: formData 
+    formData.append('timezone', getUserTimezone());
+        
+    fetch('/combined_register_visitor', {
+        method: 'POST',
+        body: formData
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             const img = document.getElementById('preview-' + visitorId);
             const reader = new FileReader();
-            reader.onload = function(e) { 
-                img.src = e.target.result; 
-                img.style.display = 'block'; 
+            reader.onload = function(e) {
+                img.src = e.target.result;
+                img.style.display = 'block';
             };
             reader.readAsDataURL(file);
 
-            // Automatically check-in the visitor
+            // Store the appointment ID for later use
             const checkbox = document.getElementById(`checkin-${visitorId}`);
-            if (checkbox && !checkbox.checked) {
+            if (checkbox) {
+                checkbox.setAttribute('data-appointment-id', appointmentId);
+                // Automatically check the checkbox
                 checkbox.checked = true;
-                toggleCheckIn(visitorId, true);
             }
 
             // Enable controls after successful photo upload
-            document.getElementById(`checkin-${visitorId}`).disabled = false;
-            document.getElementById(`red-zone-btn-${visitorId}`).disabled = false;
+            const checkinControl = document.getElementById(`checkin-${visitorId}`);
+            const redZoneBtn = document.getElementById(`red-zone-btn-${visitorId}`);
+                        
+            if (checkinControl) {
+                checkinControl.disabled = false;
+            }
+            if (redZoneBtn) redZoneBtn.disabled = false;
 
-            // Enable print button and trigger print
+            // Enable print button
             const printBtn = document.getElementById(`print-btn-${visitorId}`);
             if (printBtn) {
                 printBtn.disabled = false;
-                printVisitorDetails(visitorId);
             }
+
+            // Automatically trigger check-in
+            if (checkbox) {
+                const changeEvent = new Event('change', { bubbles: true });
+                checkbox.dispatchEvent(changeEvent);
+            }
+
+            // Wait a bit longer before starting print attempts
+            setTimeout(() => {
+                console.log(`Starting auto-print for visitor ${visitorId}`);
+                printVisitorDetailsWithRetry(visitorId, 2, 2000); // 2 minutes timeout, retry every 2 seconds
+            }, 1000); // Wait 1 second before starting
+
+            alert('Photo uploaded successfully, visitor has been checked in, and visitor pass is being generated!');
         } else {
             alert(data.error || 'Error uploading photo');
         }
     })
     .catch(error => {
+        console.error('Photo upload error:', error);
         alert('Error uploading photo: ' + error.message);
     });
 }
 
-// New function to generate and print visit pass
-function generateVisitPass(visitorId, appointmentId) {
-    fetch('/generate_visit_pass', {
+// Fixed retry function that handles the actual printVisitorDetails function properly
+function printVisitorDetailsWithRetry(visitorId, timeoutMinutes = 2, retryInterval = 2000) {
+    const startTime = Date.now();
+    const timeoutMs = timeoutMinutes * 60 * 1000;
+    let attemptCount = 0;
+    
+    function attemptPrint() {
+        attemptCount++;
+        console.log(`Attempt ${attemptCount} to fetch and print visitor ${visitorId} details`);
+        
+        fetch(`/get_visitor_details/${visitorId}`)
+            .then(response => {
+                console.log(`Response status: ${response.status}, size: ${response.headers.get('content-length')} bytes`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Visitor details response:', data);
+                
+                if (data.success && data.visitor) {
+                    // Check if visitor has required details for printing
+                    if (data.visitor.CheckInTime) {
+                        console.log(`Visitor ${visitorId} details ready, creating print content directly`);
+                        
+                        // Instead of calling printVisitorDetails, create the print content directly
+                        printVisitorDetailsDirectly(visitorId, data.visitor);
+                        return; // Success, stop retrying
+                    } else {
+                        throw new Error('Visitor not checked in yet');
+                    }
+                } else {
+                    throw new Error(data.error || 'Invalid visitor data received');
+                }
+            })
+            .catch(error => {
+                const elapsedTime = Date.now() - startTime;
+                console.error(`Attempt ${attemptCount} failed:`, error.message);
+                
+                if (elapsedTime < timeoutMs) {
+                    const remainingTime = Math.round((timeoutMs - elapsedTime) / 1000);
+                    console.log(`Retrying in ${retryInterval/1000}s... (${remainingTime}s remaining)`);
+                    
+                    setTimeout(() => {
+                        attemptPrint();
+                    }, retryInterval);
+                } else {
+                    console.log(`Timeout reached for visitor ${visitorId}, trying original print function`);
+                    // Final attempt with original function
+                    try {
+                        printVisitorDetails(visitorId);
+                    } catch (e) {
+                        console.error('Final print attempt also failed:', e);
+                        alert('Unable to automatically print visitor pass. Please use the Print button manually.');
+                    }
+                }
+            });
+    }
+    
+    // Start the first attempt immediately
+    attemptPrint();
+}
+
+// Direct print function that bypasses the original printVisitorDetails function
+function printVisitorDetailsDirectly(visitorId, visitorData) {
+    try {
+        console.log('Creating print content directly for visitor:', visitorId);
+        
+        // Create a new window for printing
+        const printWindow = window.open('', '_blank');
+        
+        // Create HTML content for printing
+        const printContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Visitor Pass - ${visitorData.VisitorName}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; }
+                    .visitor-pass { border: 2px solid #000; padding: 20px; max-width: 400px; }
+                    .header { text-align: center; border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 15px; }
+                    .detail-row { margin: 8px 0; }
+                    .label { font-weight: bold; }
+                    .photo { text-align: center; margin: 10px 0; }
+                    .photo img { max-width: 150px; max-height: 150px; border: 1px solid #ccc; }
+                </style>
+            </head>
+            <body>
+                <div class="visitor-pass">
+                    <div class="header">
+                        <h2>VISITOR PASS</h2>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Name:</span> ${visitorData.VisitorName || 'N/A'}
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Company:</span> ${visitorData.VisitorCompany || 'N/A'}
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Phone:</span> ${visitorData.VisitorPhone || 'N/A'}
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Host:</span> ${visitorData.HostName || 'N/A'}
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Check-in:</span> ${visitorData.CheckInTime || 'N/A'}
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Purpose:</span> ${visitorData.PurposeOfVisit || 'N/A'}
+                    </div>
+                    ${visitorData.VisitorPhotoPath ? `
+                    <div class="photo">
+                        <img src="/static/visitor_photos/${visitorData.VisitorPhotoPath}" alt="Visitor Photo" onerror="this.style.display='none'">
+                    </div>
+                    ` : ''}
+                </div>
+                <script>
+                    window.onload = function() {
+                        setTimeout(function() {
+                            window.print();
+                            window.close();
+                        }, 1000);
+                    };
+                </script>
+            </body>
+            </html>
+        `;
+        
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        
+        console.log('Print window created successfully for visitor:', visitorId);
+        
+    } catch (error) {
+        console.error('Error creating print content:', error);
+        alert('Error creating visitor pass for printing');
+    }
+}
+
+// Alternative approach: Direct print without retry mechanism
+function uploadPhotoWithDirectPrint(event, visitorId, appointmentId, zoneStatus) {
+    // First check if this is a "No Visit" status
+    if (hasNoVisitStatus(visitorId)) {
+        alert('Photo upload is not allowed for appointments marked as "No Visit"');
+        event.target.value = '';
+        return;
+    }
+
+    // Check zone status only if it's pending
+    if (zoneStatus === 'pending') {
+        alert('Photo upload is not allowed until zone status is approved.');
+        event.target.value = '';
+        return;
+    }
+
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('visitor_photo', file);
+    formData.append('appointment_id', appointmentId);
+    formData.append('timezone', getUserTimezone());
+        
+    fetch('/combined_register_visitor', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-            visitor_id: visitorId, 
-            appointment_id: appointmentId 
-        })
+        body: formData
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // If the backend generates a pass, open print dialog
-            const printWindow = window.open('/print_visit_pass/' + appointmentId, '_blank');
-            if (printWindow) {
-                printWindow.print();
-            } else {
-                alert('Please enable pop-ups to print the visit pass');
+            // Handle UI updates
+            const img = document.getElementById('preview-' + visitorId);
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                img.src = e.target.result;
+                img.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+
+            // Store the appointment ID and check checkbox
+            const checkbox = document.getElementById(`checkin-${visitorId}`);
+            if (checkbox) {
+                checkbox.setAttribute('data-appointment-id', appointmentId);
+                checkbox.checked = true;
             }
+
+            // Enable all controls
+            ['checkin-', 'red-zone-btn-', 'print-btn-'].forEach(prefix => {
+                const element = document.getElementById(prefix + visitorId);
+                if (element) element.disabled = false;
+            });
+
+            // Trigger check-in event
+            if (checkbox) {
+                checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            // Wait for check-in to process, then print directly
+            setTimeout(() => {
+                console.log(`Direct print attempt for visitor ${visitorId}`);
+                printVisitorDetails(visitorId);
+            }, 3000); // Wait 3 seconds for check-in to process
+
+            alert('Photo uploaded successfully, visitor has been checked in, and visitor pass will be generated!');
         } else {
-            alert(data.error || 'Error generating visit pass');
+            alert(data.error || 'Error uploading photo');
         }
     })
     .catch(error => {
-        alert('Error generating visit pass: ' + error.message);
+        console.error('Photo upload error:', error);
+        alert('Error uploading photo: ' + error.message);
     });
 }
 
