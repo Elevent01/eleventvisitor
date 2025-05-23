@@ -539,7 +539,30 @@
                                            for="checkin-{{ visitor.VisitorId }}">Check In</label>
                                 </div>
                             </div>
-                            
+                            <!-- Out Time Photo Button -->
+                        <div class="action-group out-time-photo" id="out-time-photo-group-{{ visitor.VisitorId }}"
+                             {% if not visitor.CheckInTime or visitor.CheckOutTime or visitor.VisitorStatus == 'Is Gone' %} style="display: none;" {% endif %}>
+                            <input type="file" 
+                                   accept="image/*" 
+                                   capture="environment" 
+                                   id="out-time-camera-{{ visitor.VisitorId }}" 
+                                   class="camera-button d-none" 
+                                   onchange="uploadOutTimePhoto(event, '{{ visitor.VisitorId }}', '{{ visitor.AppointmentId }}')"
+                                   {% if visitor.OutTimePhoto %} disabled {% endif %}>
+                            <button type="button" 
+                                    class="btn btn-info btn-sm w-100" 
+                                    id="take-out-photo-btn-{{ visitor.VisitorId }}"
+                                    onclick="document.getElementById('out-time-camera-{{ visitor.VisitorId }}').click();"
+                                    {% if visitor.OutTimePhoto %} disabled {% endif %}>
+                                Take Out Time Photo
+                            </button>
+                            <!-- Hidden marker for out time photo existence -->
+                            {% if visitor.OutTimePhoto %}
+                                <div id="out-time-preview-{{ visitor.VisitorId }}" class="d-none" data-photo-uploaded="true"></div>
+                            {% else %}
+                                <div id="out-time-preview-{{ visitor.VisitorId }}" class="d-none" data-photo-uploaded="false"></div>
+                            {% endif %}
+                        </div>
                             <div class="action-group checkout" id="checkout-group-{{ visitor.VisitorId }}"
                                  {% if not visitor.CheckInTime or visitor.CheckOutTime %} style="display: none;" {% endif %}>
                                 <button class="btn btn-danger btn-sm w-100 toggle-checkout" 
@@ -617,8 +640,10 @@ function hasNoVisitStatus(visitorId) {
 }
 
 function filterByStatus(status) {
+    const userTimezone = getUserTimezone();
     const searchParams = new URLSearchParams();
     searchParams.append('status', status);
+    searchParams.append('timezone', userTimezone);
     
     fetch(`/filter_by_status?${searchParams.toString()}`)
         .then(response => response.json())
@@ -629,14 +654,19 @@ function filterByStatus(status) {
             }
             
             const tableBody = document.querySelector('table tbody');
-            tableBody.innerHTML = ''; // Clear existing rows
+            tableBody.innerHTML = '';
             
             if (!data.visitors || data.visitors.length === 0) {
                 alert(`No visitors found with ${status} status`);
                 return;
             }
             
+            // Process and display visitors with timezone-aware times
             data.visitors.forEach(visitor => {
+                // Format times for display
+                const checkinTime = visitor.CheckInTime ? formatLocalTime(visitor.CheckInTime) : '';
+                const checkoutTime = visitor.CheckOutTime ? formatLocalTime(visitor.CheckOutTime) : '';
+                
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td>${visitor.VisitorId}</td>
@@ -645,13 +675,13 @@ function filterByStatus(status) {
                     <td id="visit-date-${visitor.VisitorId}" class="visit-date">${visitor.VisitDate || ''}</td>
                     <td>${visitor.VisitPurpose || ''}</td>
                     <td>${visitor.HostName || ''}</td>
-                    <td id="checkin-time-${visitor.VisitorId}">${visitor.CheckInTime || ''}
+                    <td id="checkin-time-${visitor.VisitorId}">${checkinTime}
                         <input type="checkbox" id="checkin-${visitor.VisitorId}"
                                onchange="checkInChange(this, '${visitor.VisitorId}')"
                                ${visitor.CheckInTime ? 'checked disabled' : ''}
                                class="checkin-checkbox" ${!visitor.CheckInTime ? '' : 'disabled'}>
                     </td>
-                    <td id="checkout-time-${visitor.VisitorId}">${visitor.CheckOutTime || ''}</td>
+                    <td id="checkout-time-${visitor.VisitorId}">${checkoutTime}</td>
                     <td id="status-${visitor.VisitorId}" class="status-${(visitor.VisitorStatus || '').toLowerCase()}">${visitor.VisitorStatus || ''}</td>
                     <td id="zone-status-${visitor.VisitorId}">${visitor.ZoneStatus || ''}</td>
                     <td></td>
@@ -849,69 +879,6 @@ function performUnifiedSearch() {
 function resetSearch() {
     document.getElementById('unifiedSearch').value = '';
     window.location.reload();
-}
-
-function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
-    // First check if this is a "No Visit" status
-    if (hasNoVisitStatus(visitorId)) {
-        alert('Photo upload is not allowed for appointments marked as "No Visit"');
-        event.target.value = ''; // Clear the file input
-        return;
-    }
-
-    // Check zone status only if it's pending
-    if (zoneStatus === 'pending') {
-        alert('Photo upload is not allowed until zone status is approved.');
-        event.target.value = '';
-        return;
-    }
-
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('photo', file);
-    formData.append('appointment_id', appointmentId);
-    
-    fetch('/upload_visitor_photo', { 
-        method: 'POST', 
-        body: formData 
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const img = document.getElementById('preview-' + visitorId);
-            const reader = new FileReader();
-            reader.onload = function(e) { 
-                img.src = e.target.result; 
-                img.style.display = 'block'; 
-            };
-            reader.readAsDataURL(file);
-
-            // Automatically check-in the visitor
-            const checkbox = document.getElementById(`checkin-${visitorId}`);
-            if (checkbox && !checkbox.checked) {
-                checkbox.checked = true;
-                toggleCheckIn(visitorId, true);
-            }
-
-            // Enable controls after successful photo upload
-            document.getElementById(`checkin-${visitorId}`).disabled = false;
-            document.getElementById(`red-zone-btn-${visitorId}`).disabled = false;
-
-            // Enable print button and trigger print
-            const printBtn = document.getElementById(`print-btn-${visitorId}`);
-            if (printBtn) {
-                printBtn.disabled = false;
-                printVisitorDetails(visitorId);
-            }
-        } else {
-            alert(data.error || 'Error uploading photo');
-        }
-    })
-    .catch(error => {
-        alert('Error uploading photo: ' + error.message);
-    });
 }
 
 // Initialize the page by adding hasNoVisitStatus check to all existing rows
@@ -1199,30 +1166,32 @@ function printVisitorDetails(visitorId) {
 }
      function submitForm() {
     const formData = new FormData(document.getElementById('visitor-form'));
+    formData.append('timezone', getUserTimezone());
     
-    $.ajax({
-        url: "{{ url_for('combined_register_visitor') }}",
-        type: 'POST',
-        data: formData,
-        processData: false,
-        contentType: false,
-        success: function(response) {
-            if (response.success) {
-                alert(response.message);
-                document.getElementById('visitor-form').reset();
-                // Reset date to current date after form reset
-                const today = new Date().toISOString().split('T')[0];
-                document.querySelector('input[name="visit_date"]').value = today;
-                location.reload();
-            } else {
-                alert('Error: ' + response.error);
-            }
-        },
-        error: function() {
-            alert('An error occurred while registering the visitor. Please try again.');
+    fetch("/combined_register_visitor", {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            document.getElementById('visitor-form').reset();
+            // Reset date to current date after form reset
+            const today = new Date().toISOString().split('T')[0];
+            const dateInput = document.querySelector('input[name="visit_date"]');
+            if (dateInput) dateInput.value = today;
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
         }
+    })
+    .catch(error => {
+        alert('An error occurred while registering the visitor. Please try again.');
+        console.error('Error:', error);
     });
 }
+
 
 function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
     // First check if this is a "No Visit" status
@@ -1318,48 +1287,94 @@ function generateVisitPass(visitorId, appointmentId) {
     });
 }
 
-function uploadOutTimePhoto(event, visitorId) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('photo', file);
-    formData.append('visitor_id', visitorId);
-
-    fetch('/upload_out_time_photo', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Update photo preview
-            const preview = document.getElementById('out-time-preview-' + visitorId);
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                if (preview.tagName.toLowerCase() === 'div') {
-                    const img = document.createElement('img');
-                    img.src = e.target.result;
-                    img.alt = "Out Time Photo";
-                    img.className = "photo-preview";
-                    img.id = 'out-time-preview-' + visitorId;
-                    preview.parentNode.replaceChild(img, preview);
-                } else {
-                    preview.src = e.target.result;
-                }
-            };
-            reader.readAsDataURL(file);
-
-            // Enable checkout button
-            document.getElementById('checkout-btn-' + visitorId).disabled = false;
-        } else {
-            alert(data.error || 'Error uploading out time photo');
+function loadVisitorsWithTimezone() {
+    const userTimezone = getUserTimezone();
+    
+    fetch(`/get_visitors_data?timezone=${encodeURIComponent(userTimezone)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateVisitorTable(data.visitors);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading visitors data:', error);
+        });
+}
+// Function to update visitor table with timezone-aware data
+function updateVisitorTable(visitors) {
+    const tableBody = document.querySelector('table tbody');
+    if (!tableBody) return;
+    
+    // Update existing rows with proper timezone formatting
+    visitors.forEach(visitor => {
+        const checkinCell = document.getElementById(`checkin-time-${visitor.VisitorId}`);
+        const checkoutCell = document.getElementById(`checkout-time-${visitor.VisitorId}`);
+        
+        if (checkinCell && visitor.CheckInTime) {
+            checkinCell.textContent = visitor.CheckInTime;
         }
-    })
-    .catch(error => {
-        alert('Error uploading out time photo: ' + error.message);
+        
+        if (checkoutCell && visitor.CheckOutTime) {
+            checkoutCell.textContent = visitor.CheckOutTime;
+        }
     });
 }
+
+// Function to display current timezone info
+function displayTimezoneInfo() {
+    const timezone = getUserTimezone();
+    const currentTime = getCurrentLocalTime();
+    
+    // Add timezone info to page header if not exists
+    let timezoneInfo = document.getElementById('timezone-info');
+    if (!timezoneInfo) {
+        timezoneInfo = document.createElement('div');
+        timezoneInfo.id = 'timezone-info';
+        timezoneInfo.className = 'alert alert-info';
+        timezoneInfo.innerHTML = `
+            <strong>Current Timezone:</strong> ${timezone}<br>
+            <strong>Current Time:</strong> <span id="current-time">${currentTime}</span>
+        `;
+        
+        const container = document.querySelector('.container') || document.body;
+        container.insertBefore(timezoneInfo, container.firstChild);
+    }
+    
+    // Update time every second
+    setInterval(() => {
+        const timeSpan = document.getElementById('current-time');
+        if (timeSpan) {
+            timeSpan.textContent = getCurrentLocalTime();
+        }
+    }, 1000);
+}
+
+// Initialize timezone support on page load
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('User Timezone:', getUserTimezone());
+    displayTimezoneInfo();
+    loadVisitorsWithTimezone();
+    
+    // Update existing time displays to user's timezone
+    document.querySelectorAll('[id^="checkin-time-"]').forEach(cell => {
+        if (cell.textContent && cell.textContent.trim()) {
+            const formattedTime = formatLocalTime(cell.textContent);
+            if (formattedTime) {
+                cell.textContent = formattedTime;
+            }
+        }
+    });
+    
+    document.querySelectorAll('[id^="checkout-time-"]').forEach(cell => {
+        if (cell.textContent && cell.textContent.trim()) {
+            const formattedTime = formatLocalTime(cell.textContent);
+            if (formattedTime) {
+                cell.textContent = formattedTime;
+            }
+        }
+    });
+});
 document.getElementById('company').addEventListener('change', updateCompanyDetails);
 document.addEventListener('DOMContentLoaded', function() {
     // Set current date for visit_date input
@@ -1541,13 +1556,12 @@ document.addEventListener('DOMContentLoaded', function() {
 function handleNewAppointmentCreated() {
     setTimeout(disablePhotoUploadForNoVisit, 100); // Small delay to ensure DOM is updated
 }
-
-// Updated upload photo function
+//main function for generate visitor pass with upload photo button
 function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
     // First check if this is a "No Visit" status
     if (hasNoVisitStatus(visitorId)) {
         alert('Photo upload is not allowed for appointments marked as "No Visit"');
-        event.target.value = ''; // Clear the file input
+        event.target.value = '';
         return;
     }
 
@@ -1562,41 +1576,58 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
     if (!file) return;
 
     const formData = new FormData();
-    formData.append('photo', file);
+    formData.append('visitor_photo', file);
     formData.append('appointment_id', appointmentId);
-    
-    fetch('/upload_visitor_photo', { 
-        method: 'POST', 
-        body: formData 
+    formData.append('timezone', getUserTimezone());
+        
+    fetch('/combined_register_visitor', {
+        method: 'POST',
+        body: formData
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             const img = document.getElementById('preview-' + visitorId);
             const reader = new FileReader();
-            reader.onload = function(e) { 
-                img.src = e.target.result; 
-                img.style.display = 'block'; 
+            reader.onload = function(e) {
+                img.src = e.target.result;
+                img.style.display = 'block';
             };
             reader.readAsDataURL(file);
 
-            // Automatically check-in the visitor
+            // Store the appointment ID for later use
             const checkbox = document.getElementById(`checkin-${visitorId}`);
-            if (checkbox && !checkbox.checked) {
+            if (checkbox) {
+                checkbox.setAttribute('data-appointment-id', appointmentId);
+                // Automatically check the checkbox
                 checkbox.checked = true;
-                toggleCheckIn(visitorId, true);
             }
 
             // Enable controls after successful photo upload
-            document.getElementById(`checkin-${visitorId}`).disabled = false;
-            document.getElementById(`red-zone-btn-${visitorId}`).disabled = false;
+            const checkinControl = document.getElementById(`checkin-${visitorId}`);
+            const redZoneBtn = document.getElementById(`red-zone-btn-${visitorId}`);
+                        
+            if (checkinControl) {
+                checkinControl.disabled = false;
+            }
+            if (redZoneBtn) redZoneBtn.disabled = false;
 
-            // Enable print button and trigger print
+            // Enable print button
             const printBtn = document.getElementById(`print-btn-${visitorId}`);
             if (printBtn) {
                 printBtn.disabled = false;
-                printVisitorDetails(visitorId);
             }
+
+            // Automatically trigger check-in
+            if (checkbox) {
+                const changeEvent = new Event('change', { bubbles: true });
+                checkbox.dispatchEvent(changeEvent);
+            }
+
+            // Automatically generate and print visitor pass with 1 minute retry
+            printVisitorDetailsWithRetry(visitorId, 1, 3000); // 1 minute timeout, retry every 3 seconds
+
+            alert('Photo uploaded successfully, visitor has been checked in, and visitor pass is being generated!');
         } else {
             alert(data.error || 'Error uploading photo');
         }
@@ -1604,6 +1635,60 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
     .catch(error => {
         alert('Error uploading photo: ' + error.message);
     });
+}
+// Helper function to retry printing visitor details with exponential backoff
+// Helper function to retry printing visitor details for at least 1 minute
+function printVisitorDetailsWithRetry(visitorId, timeoutMinutes = 1, retryInterval = 3000) {
+    const startTime = Date.now();
+    const timeoutMs = timeoutMinutes * 60 * 1000; // Convert minutes to milliseconds
+    
+    function attemptPrint() {
+        fetch(`/get_visitor_details/${visitorId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // If successful, call the original print function
+                    console.log(`Visitor details fetched successfully for visitor ${visitorId}`);
+                    printVisitorDetails(visitorId);
+                } else {
+                    throw new Error(data.error || 'Failed to fetch visitor details');
+                }
+            })
+            .catch(error => {
+                const elapsedTime = Date.now() - startTime;
+                
+                if (elapsedTime < timeoutMs) {
+                    // Still within timeout period, continue retrying
+                    const remainingTime = Math.round((timeoutMs - elapsedTime) / 1000);
+                    console.log(`Retrying visitor ${visitorId} fetch... (${remainingTime}s remaining)`);
+                    
+                    setTimeout(() => {
+                        attemptPrint();
+                    }, retryInterval);
+                } else {
+                    // Timeout reached, make final attempt
+                    console.log(`Timeout reached for visitor ${visitorId}, making final print attempt`);
+                    printVisitorDetails(visitorId);
+                }
+            });
+    }
+    
+    // Start the first attempt immediately
+    attemptPrint();
+}
+function loadVisitorsWithTimezone() {
+    const userTimezone = getUserTimezone();
+    
+    fetch(`/get_visitors_data?timezone=${encodeURIComponent(userTimezone)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateVisitorTable(data.visitors);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading visitors data:', error);
+        });
 }
         function uploadOutTimePhoto(event, visitorId) {
             const file = event.target.files[0];
@@ -1793,43 +1878,82 @@ function checkInChange(checkbox, visitorId) {
 
     toggleCheckIn(visitorId, isChecked);
 }
+function getUserTimezone() {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+function formatLocalTime(utcTimeString) {
+    if (!utcTimeString) return '';
+    
+    const utcDate = new Date(utcTimeString + 'Z'); // Add Z to indicate UTC
+    return utcDate.toLocaleString('en-IN', {
+        timeZone: getUserTimezone(),
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+    });
+}
+
+function getCurrentLocalTime() {
+    return new Date().toLocaleString('en-IN', {
+        timeZone: getUserTimezone(),
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+    });
+}
 function toggleCheckIn(visitorId, isChecked) {
-    // Check again for "No Visit" status before making the API call
+    // Check for "No Visit" status
     if (hasNoVisitStatus(visitorId)) {
         return;
     }
 
+    const userTimezone = getUserTimezone();
+    
     fetch('/toggle_checkin/' + visitorId, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ check_in: 'checked' })
+        body: JSON.stringify({ 
+            check_in: 'checked',
+            timezone: userTimezone
+        })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Update check-in time only if not "No Visit"
-            if (!hasNoVisitStatus(visitorId)) {
-                const checkinTimeCell = document.getElementById('checkin-time-' + visitorId);
-                const currentTime = new Date().toLocaleString();
-                checkinTimeCell.textContent = currentTime;
-                
-                // Update status
-                const statusCell = document.getElementById('status-' + visitorId);
-                statusCell.textContent = 'Inside';
-                
-                // Hide check-in group and show checkout group
-                document.getElementById('checkin-group-' + visitorId).style.display = 'none';
-                document.getElementById('checkout-group-' + visitorId).style.display = 'block';
-                
-                // Disable check-in checkbox
-                const checkbox = document.getElementById(`checkin-${visitorId}`);
-                if (checkbox) {
-                    checkbox.checked = true;
-                    checkbox.disabled = true;
-                }
+            // Update check-in time with user's local time
+            const checkinTimeCell = document.getElementById('checkin-time-' + visitorId);
+            checkinTimeCell.textContent = data.display_time || getCurrentLocalTime();
+            
+            // Update status
+            const statusCell = document.getElementById('status-' + visitorId);
+            statusCell.textContent = 'Inside';
+            
+            // Hide check-in group and show checkout group
+            const checkinGroup = document.getElementById('checkin-group-' + visitorId);
+            const checkoutGroup = document.getElementById('checkout-group-' + visitorId);
+            
+            if (checkinGroup) checkinGroup.style.display = 'none';
+            if (checkoutGroup) checkoutGroup.style.display = 'block';
+            
+            // Disable check-in checkbox
+            const checkbox = document.getElementById(`checkin-${visitorId}`);
+            if (checkbox) {
+                checkbox.checked = true;
+                checkbox.disabled = true;
             }
+            
+            console.log(`Check-in completed at: ${data.display_time} (${userTimezone})`);
         } else {
             alert(data.error || 'Error checking in');
             // Uncheck the checkbox if check-in fails
@@ -1844,6 +1968,7 @@ function toggleCheckIn(visitorId, isChecked) {
         if (checkbox) checkbox.checked = false;
     });
 }
+
 
 function updateCheckInStatus(visitorId, isChecked) {
     // Don't update check-in status for "No Visit" appointments
@@ -1869,27 +1994,37 @@ function updateCheckInStatus(visitorId, isChecked) {
     }
 }
  
-    function toggleCheckout(visitorId) {
+function toggleCheckout(visitorId) {
+    const userTimezone = getUserTimezone();
+    
     fetch('/toggle_checkout/' + visitorId, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({
+            timezone: userTimezone
+        })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Update checkout time
+            // Update checkout time with user's local time
             const checkoutTimeCell = document.getElementById('checkout-time-' + visitorId);
-            checkoutTimeCell.textContent = new Date().toLocaleString();
+            checkoutTimeCell.textContent = data.display_time || getCurrentLocalTime();
             
             // Update status
             const statusCell = document.getElementById('status-' + visitorId);
             statusCell.textContent = 'Is Gone';
             
             // Hide checkout group and show completed badge
-            document.getElementById('checkout-group-' + visitorId).style.display = 'none';
-            document.getElementById('completed-group-' + visitorId).style.display = 'block';
+            const checkoutGroup = document.getElementById('checkout-group-' + visitorId);
+            const completedGroup = document.getElementById('completed-group-' + visitorId);
+            
+            if (checkoutGroup) checkoutGroup.style.display = 'none';
+            if (completedGroup) completedGroup.style.display = 'block';
+            
+            console.log(`Check-out completed at: ${data.display_time} (${userTimezone})`);
         } else {
             alert(data.error || 'Error checking out');
         }
@@ -1898,6 +2033,7 @@ function updateCheckInStatus(visitorId, isChecked) {
         alert('Error: ' + error.message);
     });
 }
+
 
 function updateCheckoutStatus(visitorId) {
     const checkoutTimeCell = document.getElementById(`checkout-time-${visitorId}`);
