@@ -962,208 +962,522 @@ document.addEventListener('DOMContentLoaded', function() {
     updateCompanyDetails();
 });
 
+// Enhanced printVisitorDetails function with multiple fallback options
 function printVisitorDetails(visitorId) {
     fetch(`/get_visitor_details/${visitorId}`)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                const printWindow = window.open('', '_blank');
-                
-                const visitArea = data.visitor.zone_visit_area === 'N/A' ? 'common' : data.visitor.zone_visit_area;
-                const zoneName = data.visitor.zone_status || 'N/A';
-                
-                const printContent = `
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Visitor Pass</title>
-                        <style>
-                            @page {
-                                size: A4;
-                                margin: 10mm;
-                            }
-                            body {
-                                font-family: Arial, sans-serif;
-                                margin: 0;
-                                padding: 20px;
-                                background-color: #f0f0f0;
-                            }
-                            .visitor-passes {
-                                display: grid;
-                                grid-template-columns: repeat(1, 1fr);
-                                gap: 20px;
-                            }
-                            .visitor-card {
-                                width: 100%;
-                                max-width: 800px;
-                                height: 180px;
-                                background-color: white;
-                                border-radius: 8px;
-                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                                margin-bottom: 20px;
-                                display: flex;
-                                page-break-inside: avoid;
-                            }
-                            .photo-section {
-                                width: 25%;
-                                padding: 15px;
-                                border-right: 1px solid #eee;
-                                display: flex;
-                                flex-direction: column;
-                                align-items: center;
-                            }
-                            .visitor-photo {
-                                width: 80px;
-                                height: 80px;
-                                border-radius: 4px;
-                                overflow: hidden;
-                                margin: 0 auto 10px;
-                            }
-                            .visitor-photo img {
-                                width: 100%;
-                                height: 100%;
-                                object-fit: cover;
-                            }
-                            .details-section {
-                                width: 75%;
-                                padding: 15px;
-                            }
-                            .card-header {
-                                background-color: #007bff;
-                                color: white;
-                                padding: 6px 15px;
-                                border-radius: 4px;
-                                margin-bottom: 10px;
-                                font-size: 16px;
-                                font-weight: bold;
-                            }
-                            .detail-row {
-                                display: flex;
-                                margin-bottom: 4px;
-                            }
-                            .detail-label {
-                                font-weight: bold;
-                                width: 120px;
-                                color: #555;
-                                font-size: 11px;
-                            }
-                            .detail-value {
-                                flex: 1;
-                                color: #333;
-                                font-size: 11px;
-                            }
-                            .status-badge {
-                                display: inline-block;
-                                padding: 2px 6px;
-                                border-radius: 3px;
-                                font-size: 10px;
-                                font-weight: bold;
-                                text-transform: capitalize;
-                            }
-                            .status-green { background-color: #e6ffe6; color: #006600; }
-                            .status-red { background-color: #ffe6e6; color: #cc0000; }
-                            .status-yellow { background-color: #fff3cd; color: #856404; }
-                            .zone-info {
-                                margin-top: 5px;
-                                padding: 6px;
-                                background-color: #f8f9fa;
-                                border-radius: 4px;
-                                font-size: 10px;
-                            }
-                            @media print {
-                                body { background-color: white; }
-                                .visitor-card {
-                                    box-shadow: none;
-                                    border: 1px solid #ddd;
-                                    break-inside: avoid;
-                                    margin: 0 auto 20px;
-                                }
-                                .visitor-passes {
-                                    grid-template-columns: 1fr;
-                                }
-                                button { display: none; }
-                                @page {
-                                    margin: 10mm;
-                                }
-                                .visitor-card:nth-child(3n) {
-                                    page-break-after: always;
-                                }
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        <div class="visitor-passes">
-                            <div class="visitor-card">
-                                <div class="photo-section">
-                                    ${data.visitor.photo ? `
-                                    <div class="visitor-photo">
-                                        <img src="${data.visitor.photo}" alt="Visitor Photo">
-                                    </div>
-                                    ` : ''}
-                                    <div class="zone-info">
-                                        <div><strong>Zone:</strong> ${zoneName}</div>
-                                        <div><strong>Zone Name :</strong> ${data.visitor.zone_id || 'N/A'}</div>
-                                        <div><strong>Area:</strong> ${visitArea}</div>
-                                        <div><strong>Appointment ID:</strong> ${data.visitor.appointment_id || 'N/A'}</div>
-                                    </div>
-                                </div>
-                                <div class="details-section">
-                                    <div class="card-header">Visitor Pass</div>
-                                    <div class="detail-row">
-                                        <div class="detail-label">Name:</div>
-                                        <div class="detail-value">${data.visitor.name || ''}</div>
-                                    </div>
-                                    <div class="detail-row">
-                                        <div class="detail-label">Visit Date:</div>
-                                        <div class="detail-value">${data.visitor.visit_date || ''}</div>
-                                    </div>
-                                    <div class="detail-row">
-                                        <div class="detail-label">Host Name:</div>
-                                        <div class="detail-value">${data.visitor.host_name || ''}</div>
-                                    </div>
-                                    <div class="detail-row">
-                                        <div class="detail-label">Visit Purpose:</div>
-                                        <div class="detail-value">${data.visitor.visit_purpose || ''}</div>
-                                    </div>
-                                    <div class="detail-row">
-                                        <div class="detail-label">Organization:</div>
-                                        <div class="detail-value">${data.visitor.visit_in_organization || ''}</div>
-                                    </div>
-                                    <div class="detail-row">
-                                        <div class="detail-label">Check-in Time:</div>
-                                        <div class="detail-value">${data.visitor.check_in_time || ''}</div>
-                                    </div>
-                                    <div class="detail-row">
-                                        <div class="detail-label">Status:</div>
-                                        <div class="detail-value">
-                                            <span class="status-badge ${data.visitor.visitor_status === 'approved' ? 'status-green' : 
-                                                                       data.visitor.visitor_status === 'rejected' ? 'status-red' : 'status-yellow'}">
-                                                ${data.visitor.visitor_status || 'pending'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div style="text-align: center; padding: 10px;">
-                            <button onclick="window.print()">Print</button>
-                        </div>
-                    </body>
-                    </html>
-                `;
-                
-                printWindow.document.open();
-                printWindow.document.write(printContent);
-                printWindow.document.close();
+                // Multiple fallback strategies for popup blocking
+                handlePrintVisitorPass(data.visitor);
             } else {
-                alert('Failed to load visitor details');
+                alert('Failed to load visitor details: ' + (data.error || 'Unknown error'));
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('An error occurred while fetching the visitor details.');
+            alert('An error occurred while fetching the visitor details: ' + error.message);
         });
 }
+
+// Main function to handle printing with multiple fallback options
+function handlePrintVisitorPass(visitorData) {
+    const printContent = generatePrintContent(visitorData);
+    
+    // Strategy 1: Try immediate popup (works best when called directly from user interaction)
+    const printWindow = attemptPopup(printContent);
+    
+    if (printWindow) {
+        console.log('Popup opened successfully');
+        return;
+    }
+    
+    // Strategy 2: Show modal with print options if popup fails
+    showPrintModal(printContent, visitorData);
+}
+
+// Attempt to open popup window
+function attemptPopup(printContent) {
+    try {
+        const printWindow = window.open('', '_blank', 
+            'width=800,height=600,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no'
+        );
+        
+        // Multiple checks for popup blocking
+        if (!printWindow || 
+            printWindow.closed || 
+            typeof printWindow.closed === 'undefined' ||
+            printWindow.location.href === 'about:blank') {
+            
+            // Additional check after a brief delay
+            setTimeout(() => {
+                if (printWindow && (printWindow.closed || !printWindow.document)) {
+                    printWindow.close();
+                    return null;
+                }
+            }, 100);
+            
+            if (!printWindow) return null;
+        }
+        
+        // Write content to popup
+        printWindow.document.open();
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.focus();
+        
+        return printWindow;
+    } catch (error) {
+        console.error('Popup creation failed:', error);
+        return null;
+    }
+}
+
+// Show modal with print options when popup is blocked
+function showPrintModal(printContent, visitorData) {
+    // Remove existing modal if any
+    const existingModal = document.getElementById('print-modal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Create modal HTML
+    const modalHTML = `
+        <div id="print-modal" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        ">
+            <div style="
+                background: white;
+                padding: 30px;
+                border-radius: 10px;
+                max-width: 500px;
+                width: 90%;
+                text-align: center;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            ">
+                <h3 style="color: #dc3545; margin-bottom: 20px;">
+                    🚫 Popup Blocked
+                </h3>
+                <p style="margin-bottom: 20px; color: #666;">
+                    Your browser blocked the popup window. Choose an option below:
+                </p>
+                
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button onclick="retryPopup()" style="
+                        background-color: #007bff;
+                        color: white;
+                        border: none;
+                        padding: 12px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">
+                        🔄 Try Popup Again
+                    </button>
+                    
+                    <button onclick="openInNewTab()" style="
+                        background-color: #28a745;
+                        color: white;
+                        border: none;
+                        padding: 12px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">
+                        🗂️ Open in New Tab
+                    </button>
+                    
+                    <button onclick="printInCurrentWindow()" style="
+                        background-color: #ffc107;
+                        color: #212529;
+                        border: none;
+                        padding: 12px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">
+                        🖨️ Print in Current Window
+                    </button>
+                    
+                    <button onclick="downloadAsPDF()" style="
+                        background-color: #6f42c1;
+                        color: white;
+                        border: none;
+                        padding: 12px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">
+                        📄 Download as PDF
+                    </button>
+                </div>
+                
+                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee;">
+                    <small style="color: #666;">
+                        💡 <strong>Tip:</strong> Enable popups for this site in your browser settings to avoid this message.
+                    </small>
+                </div>
+                
+                <button onclick="closeModal()" style="
+                    position: absolute;
+                    top: 10px;
+                    right: 15px;
+                    background: none;
+                    border: none;
+                    font-size: 20px;
+                    cursor: pointer;
+                    color: #999;
+                ">
+                    ×
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to page
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Store print content globally for modal functions
+    window.currentPrintContent = printContent;
+    window.currentVisitorData = visitorData;
+}
+
+// Modal action functions
+function retryPopup() {
+    const printWindow = attemptPopup(window.currentPrintContent);
+    if (printWindow) {
+        closeModal();
+    } else {
+        alert('Popup still blocked. Please enable popups for this site or try another option.');
+    }
+}
+
+function openInNewTab() {
+    try {
+        const newTab = window.open('about:blank', '_blank');
+        if (newTab) {
+            newTab.document.open();
+            newTab.document.write(window.currentPrintContent);
+            newTab.document.close();
+            newTab.focus();
+            closeModal();
+        } else {
+            alert('Unable to open new tab. Please check your browser settings.');
+        }
+    } catch (error) {
+        alert('Error opening new tab: ' + error.message);
+    }
+}
+
+function printInCurrentWindow() {
+    // Create a temporary iframe for printing
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.top = '-10000px';
+    iframe.style.left = '-10000px';
+    iframe.style.width = '1px';
+    iframe.style.height = '1px';
+    
+    document.body.appendChild(iframe);
+    
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(window.currentPrintContent);
+    iframe.contentDocument.close();
+    
+    // Wait for content to load then print
+    iframe.onload = function() {
+        setTimeout(() => {
+            try {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+                
+                // Clean up after printing
+                setTimeout(() => {
+                    document.body.removeChild(iframe);
+                }, 1000);
+                
+                closeModal();
+            } catch (error) {
+                console.error('Print error:', error);
+                alert('Print failed. Please try another option.');
+            }
+        }, 100);
+    };
+}
+
+function downloadAsPDF() {
+    // This requires a backend endpoint to generate PDF
+    const visitorData = window.currentVisitorData;
+    
+    fetch('/generate_visitor_pdf', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            visitor_id: visitorData.name, // Adjust based on your data structure
+            visitor_data: visitorData
+        })
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.blob();
+        }
+        throw new Error('PDF generation failed');
+    })
+    .then(blob => {
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `visitor_pass_${visitorData.name.replace(/\s+/g, '_')}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        closeModal();
+    })
+    .catch(error => {
+        console.error('PDF download error:', error);
+        alert('PDF download failed. Please try another option.');
+    });
+}
+
+function closeModal() {
+    const modal = document.getElementById('print-modal');
+    if (modal) {
+        modal.remove();
+    }
+    // Clean up global variables
+    delete window.currentPrintContent;
+    delete window.currentVisitorData;
+}
+
+// Generate the print content (extracted from your original function)
+function generatePrintContent(visitorData) {
+    // Handle all possible null/undefined values
+    const visitArea = visitorData.zone_visit_area === 'N/A' || !visitorData.zone_visit_area ? 'common' : visitorData.zone_visit_area;
+    const zoneName = visitorData.zone_status || 'N/A';
+    const zoneId = visitorData.zone_id || 'N/A';
+    const appointmentId = visitorData.appointment_id || 'N/A';
+    const visitorName = visitorData.name || '';
+    const visitDate = visitorData.visit_date || '';
+    const hostName = visitorData.host_name || '';
+    const visitPurpose = visitorData.visit_purpose || '';
+    const organization = visitorData.visit_in_organization || '';
+    const checkInTime = visitorData.check_in_time || '';
+    const visitorStatus = visitorData.visitor_status || 'pending';
+    const visitorPhoto = visitorData.photo || '';
+    
+    return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Visitor Pass</title>
+            <style>
+                @page {
+                    size: A4;
+                    margin: 10mm;
+                }
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    background-color: #f0f0f0;
+                }
+                .visitor-passes {
+                    display: grid;
+                    grid-template-columns: repeat(1, 1fr);
+                    gap: 20px;
+                }
+                .visitor-card {
+                    width: 100%;
+                    max-width: 800px;
+                    height: 180px;
+                    background-color: white;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    margin-bottom: 20px;
+                    display: flex;
+                    page-break-inside: avoid;
+                }
+                .photo-section {
+                    width: 25%;
+                    padding: 15px;
+                    border-right: 1px solid #eee;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                }
+                .visitor-photo {
+                    width: 80px;
+                    height: 80px;
+                    border-radius: 4px;
+                    overflow: hidden;
+                    margin: 0 auto 10px;
+                }
+                .visitor-photo img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+                .details-section {
+                    width: 75%;
+                    padding: 15px;
+                }
+                .card-header {
+                    background-color: #007bff;
+                    color: white;
+                    padding: 6px 15px;
+                    border-radius: 4px;
+                    margin-bottom: 10px;
+                    font-size: 16px;
+                    font-weight: bold;
+                }
+                .detail-row {
+                    display: flex;
+                    margin-bottom: 4px;
+                }
+                .detail-label {
+                    font-weight: bold;
+                    width: 120px;
+                    color: #555;
+                    font-size: 11px;
+                }
+                .detail-value {
+                    flex: 1;
+                    color: #333;
+                    font-size: 11px;
+                }
+                .status-badge {
+                    display: inline-block;
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    font-size: 10px;
+                    font-weight: bold;
+                    text-transform: capitalize;
+                }
+                .status-green { background-color: #e6ffe6; color: #006600; }
+                .status-red { background-color: #ffe6e6; color: #cc0000; }
+                .status-yellow { background-color: #fff3cd; color: #856404; }
+                .zone-info {
+                    margin-top: 5px;
+                    padding: 6px;
+                    background-color: #f8f9fa;
+                    border-radius: 4px;
+                    font-size: 10px;
+                }
+                .print-controls {
+                    text-align: center;
+                    padding: 10px;
+                    margin-top: 20px;
+                }
+                .print-btn {
+                    background-color: #007bff;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    margin: 0 5px;
+                }
+                .print-btn:hover {
+                    background-color: #0056b3;
+                }
+                @media print {
+                    body { background-color: white; }
+                    .visitor-card {
+                        box-shadow: none;
+                        border: 1px solid #ddd;
+                        break-inside: avoid;
+                        margin: 0 auto 20px;
+                    }
+                    .visitor-passes {
+                        grid-template-columns: 1fr;
+                    }
+                    .print-controls { display: none; }
+                    @page {
+                        margin: 10mm;
+                    }
+                    .visitor-card:nth-child(3n) {
+                        page-break-after: always;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="visitor-passes">
+                <div class="visitor-card">
+                    <div class="photo-section">
+                        ${visitorPhoto ? `
+                        <div class="visitor-photo">
+                            <img src="${visitorPhoto}" alt="Visitor Photo">
+                        </div>
+                        ` : ''}
+                        <div class="zone-info">
+                            <div><strong>Zone:</strong> ${zoneName}</div>
+                            <div><strong>Zone Name:</strong> ${zoneId}</div>
+                            <div><strong>Area:</strong> ${visitArea}</div>
+                            <div><strong>Appointment ID:</strong> ${appointmentId}</div>
+                        </div>
+                    </div>
+                    <div class="details-section">
+                        <div class="card-header">Visitor Pass</div>
+                        <div class="detail-row">
+                            <div class="detail-label">Name:</div>
+                            <div class="detail-value">${visitorName}</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">Visit Date:</div>
+                            <div class="detail-value">${visitDate}</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">Host Name:</div>
+                            <div class="detail-value">${hostName}</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">Visit Purpose:</div>
+                            <div class="detail-value">${visitPurpose}</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">Organization:</div>
+                            <div class="detail-value">${organization}</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">Check-in Time:</div>
+                            <div class="detail-value">${checkInTime}</div>
+                        </div>
+                        <div class="detail-row">
+                            <div class="detail-label">Status:</div>
+                            <div class="detail-value">
+                                <span class="status-badge ${visitorStatus === 'approved' || visitorStatus === 'Checked In' ? 'status-green' : 
+                                                           visitorStatus === 'rejected' ? 'status-red' : 'status-yellow'}">
+                                    ${visitorStatus}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="print-controls">
+                <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+                <button class="print-btn" onclick="window.close()" style="background-color: #6c757d;">✖️ Close</button>
+            </div>
+        </body>
+        </html>
+    `;
+}
+
      function submitForm() {
     const formData = new FormData(document.getElementById('visitor-form'));
     formData.append('timezone', getUserTimezone());
@@ -1599,7 +1913,6 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
             const checkbox = document.getElementById(`checkin-${visitorId}`);
             if (checkbox) {
                 checkbox.setAttribute('data-appointment-id', appointmentId);
-                // Automatically check the checkbox
                 checkbox.checked = true;
             }
 
@@ -1607,16 +1920,12 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
             const checkinControl = document.getElementById(`checkin-${visitorId}`);
             const redZoneBtn = document.getElementById(`red-zone-btn-${visitorId}`);
                         
-            if (checkinControl) {
-                checkinControl.disabled = false;
-            }
+            if (checkinControl) checkinControl.disabled = false;
             if (redZoneBtn) redZoneBtn.disabled = false;
 
             // Enable print button
             const printBtn = document.getElementById(`print-btn-${visitorId}`);
-            if (printBtn) {
-                printBtn.disabled = false;
-            }
+            if (printBtn) printBtn.disabled = false;
 
             // Automatically trigger check-in
             if (checkbox) {
@@ -1624,8 +1933,8 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
                 checkbox.dispatchEvent(changeEvent);
             }
 
-            // Automatically generate and print visitor pass with 1 minute retry
-            printVisitorDetailsWithRetry(visitorId, 1, 3000); // 1 minute timeout, retry every 3 seconds
+            // Use enhanced print function with retry and fallback
+            printVisitorDetailsWithRetry(visitorId, 1, 3000);
 
             alert('Photo uploaded successfully, visitor has been checked in, and visitor pass is being generated!');
         } else {
@@ -1636,7 +1945,7 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
         alert('Error uploading photo: ' + error.message);
     });
 }
-// Helper function to retry printing visitor details with exponential backoff
+
 // Helper function to retry printing visitor details for at least 1 minute
 function printVisitorDetailsWithRetry(visitorId, timeoutMinutes = 1, retryInterval = 3000) {
     const startTime = Date.now();
