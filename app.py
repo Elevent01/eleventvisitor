@@ -5329,7 +5329,70 @@ def upload_out_time_photo():
     
     finally:
         conn.close()
-    
+        
+@app.route('/toggle_checkin/<int:visitor_id>', methods=['POST'])
+def toggle_checkin(visitor_id):
+    try:
+        # Get user timezone from request
+        user_timezone = request.json.get('timezone', 'UTC')
+        user_tz = pytz.timezone(user_timezone)
+        
+        conn = get_db_connection()
+        with conn.cursor() as cur:
+            # Get the current date in user's timezone
+            current_date = datetime.now(user_tz).date()
+            
+            # Get current status for today's appointment only
+            cur.execute("""
+                SELECT vvs.VisitStatus, vvs.InTime, vvs.OutTime, vvs.AppointmentId
+                FROM VisitorVisitStatus vvs
+                JOIN VisitorAppointment va ON vvs.AppointmentId = va.AppointmentId
+                WHERE vvs.VisitorId = %s
+                AND DATE(va.AppointmentDate) = %s
+                ORDER BY vvs.CreatedAt DESC 
+                LIMIT 1
+            """, (visitor_id, current_date))
+            result = cur.fetchone()
+            
+            if not result:
+                return jsonify({'error': 'No valid appointment found for today'}), 404
+                
+            current_status, in_time, out_time, appointment_id = result
+            
+            # Current time in user's timezone
+            local_time = datetime.now(user_tz)
+            # Convert to UTC for database storage
+            utc_time = local_time.astimezone(pytz.UTC)
+            
+            # Only update if the status isn't already 'Inside'
+            if current_status != 'Inside' and not in_time:
+                cur.execute("""
+                    UPDATE VisitorVisitStatus 
+                    SET VisitStatus = 'Inside', 
+                        InTime = %s 
+                    WHERE AppointmentId = %s
+                    AND VisitorId = %s
+                    RETURNING VisitStatus
+                """, (utc_time, appointment_id, visitor_id))
+                new_status = 'Inside'
+            else:
+                return jsonify({'error': 'Visitor is already checked in'}), 400
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'new_status': new_status,
+                'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
+                'timestamp': utc_time.strftime('%Y-%m-%d %H:%M:%S')
+            })
+            
+    except Exception as e:
+        logging.error(f'Error updating check-in for Visitor {visitor_id}: {e}')
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if conn:
+            conn.close()    
 @app.route('/toggle_checkout/<int:visitor_id>', methods=['POST'])
 def toggle_checkout(visitor_id):
     try:
