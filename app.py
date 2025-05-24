@@ -5337,12 +5337,10 @@ def toggle_checkin(visitor_id):
         user_timezone = request.json.get('timezone', 'UTC')
         client_time = request.json.get('current_time')
         
-        # Use client's local time directly
+        # Use client's actual local time without conversion
         if client_time:
-            # Parse the ISO string and convert to local time
-            utc_time = datetime.fromisoformat(client_time.replace('Z', '+00:00'))
-            user_tz = pytz.timezone(user_timezone)
-            local_time = utc_time.astimezone(user_tz)
+            # Client is already sending local time, just parse it
+            local_time = datetime.fromisoformat(client_time.replace('Z', ''))
             current_date = local_time.date()
         else:
             user_tz = pytz.timezone(user_timezone)
@@ -5405,12 +5403,10 @@ def toggle_checkout(visitor_id):
         user_timezone = request.json.get('timezone', 'UTC')
         client_time = request.json.get('current_time')
         
-        # Use client's local time directly
+        # Use client's actual local time without conversion  
         if client_time:
-            # Parse the ISO string and convert to local time
-            utc_time = datetime.fromisoformat(client_time.replace('Z', '+00:00'))
-            user_tz = pytz.timezone(user_timezone)
-            local_time = utc_time.astimezone(user_tz)
+            # Client is already sending local time, just parse it
+            local_time = datetime.fromisoformat(client_time.replace('Z', ''))
             current_date = local_time.date()
         else:
             user_tz = pytz.timezone(user_timezone)
@@ -5473,6 +5469,7 @@ def toggle_checkout(visitor_id):
     finally:
         if conn:
             conn.close()
+
 @app.route('/filter_by_status', methods=['GET'])
 def filter_by_status():
     user_id = request.args.get('userId') or session.get('user_id')
