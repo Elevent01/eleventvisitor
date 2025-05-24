@@ -5337,10 +5337,9 @@ def toggle_checkin(visitor_id):
         user_timezone = request.json.get('timezone', 'UTC')
         client_time = request.json.get('current_time')
         
-        # Use client's actual local time without conversion
+        # If client sends current time, use it; otherwise use server time with user timezone
         if client_time:
-            # Client is already sending local time, just parse it
-            local_time = datetime.fromisoformat(client_time.replace('Z', ''))
+            local_time = datetime.fromisoformat(client_time.replace('Z', '+00:00'))
             current_date = local_time.date()
         else:
             user_tz = pytz.timezone(user_timezone)
@@ -5381,12 +5380,17 @@ def toggle_checkin(visitor_id):
                 return jsonify({'error': 'Visitor is already checked in'}), 400
             
             conn.commit()
+            
+            # Convert to user's timezone for display
+            user_tz = pytz.timezone(user_timezone)
+            display_time = local_time.astimezone(user_tz)
+            
             return jsonify({
                 'success': True, 
                 'new_status': new_status,
-                'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                'timestamp': local_time.strftime('%Y-%m-%d %H:%M:%S')
+                'local_time': display_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'display_time': display_time.strftime('%d/%m/%Y %I:%M:%S %p'),
+                'timestamp': display_time.strftime('%Y-%m-%d %H:%M:%S')
             })
             
     except Exception as e:
@@ -5403,10 +5407,9 @@ def toggle_checkout(visitor_id):
         user_timezone = request.json.get('timezone', 'UTC')
         client_time = request.json.get('current_time')
         
-        # Use client's actual local time without conversion  
+        # If client sends current time, use it; otherwise use server time with user timezone
         if client_time:
-            # Client is already sending local time, just parse it
-            local_time = datetime.fromisoformat(client_time.replace('Z', ''))
+            local_time = datetime.fromisoformat(client_time.replace('Z', '+00:00'))
             current_date = local_time.date()
         else:
             user_tz = pytz.timezone(user_timezone)
@@ -5455,11 +5458,16 @@ def toggle_checkout(visitor_id):
             
             conn.commit()
             logging.info(f'Successfully checked out VisitorId={visitor_id}, AppointmentId={appointment_id}')
+            
+            # Convert to user's timezone for display
+            user_tz = pytz.timezone(user_timezone)
+            display_time = local_time.astimezone(user_tz)
+            
             return jsonify({
                 'success': True, 
                 'message': 'Visitor checked out successfully!',
-                'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p')
+                'local_time': display_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'display_time': display_time.strftime('%d/%m/%Y %I:%M:%S %p')
             })
     
     except Exception as e:
