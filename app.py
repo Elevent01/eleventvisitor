@@ -5359,10 +5359,8 @@ def toggle_checkin(visitor_id):
                 
             current_status, in_time, out_time, appointment_id = result
             
-            # Current time in user's timezone
+            # Current time in user's timezone (keep as local time, don't convert to UTC)
             local_time = datetime.now(user_tz)
-            # Convert to UTC for database storage
-            utc_time = local_time.astimezone(pytz.UTC)
             
             # Only update if the status isn't already 'Inside'
             if current_status != 'Inside' and not in_time:
@@ -5373,7 +5371,7 @@ def toggle_checkin(visitor_id):
                     WHERE AppointmentId = %s
                     AND VisitorId = %s
                     RETURNING VisitStatus
-                """, (utc_time, appointment_id, visitor_id))
+                """, (local_time, appointment_id, visitor_id))
                 new_status = 'Inside'
             else:
                 return jsonify({'error': 'Visitor is already checked in'}), 400
@@ -5384,7 +5382,7 @@ def toggle_checkin(visitor_id):
                 'new_status': new_status,
                 'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
                 'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                'timestamp': utc_time.strftime('%Y-%m-%d %H:%M:%S')
+                'timestamp': local_time.strftime('%Y-%m-%d %H:%M:%S')
             })
             
     except Exception as e:
@@ -5434,10 +5432,8 @@ def toggle_checkout(visitor_id):
             if current_status != 'Inside':
                 return jsonify({'success': False, 'error': 'Visitor must be checked in before checking out.'}), 400
             
-            # Current time in user's timezone
+            # Current time in user's timezone (keep as local time, don't convert to UTC)
             local_time = datetime.now(user_tz)
-            # Convert to UTC for database storage
-            utc_time = local_time.astimezone(pytz.UTC)
             
             logging.info(f'Checking out VisitorId={visitor_id}, AppointmentId={appointment_id} at {local_time} ({user_timezone})')
             
@@ -5447,7 +5443,7 @@ def toggle_checkout(visitor_id):
                 SET OutTime = %s, VisitStatus = 'Is Gone'
                 WHERE AppointmentId = %s
                 AND VisitorId = %s
-            """, (utc_time, appointment_id, visitor_id))
+            """, (local_time, appointment_id, visitor_id))
             
             conn.commit()
             logging.info(f'Successfully checked out VisitorId={visitor_id}, AppointmentId={appointment_id}')
