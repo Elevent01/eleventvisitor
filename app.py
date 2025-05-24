@@ -5337,9 +5337,12 @@ def toggle_checkin(visitor_id):
         user_timezone = request.json.get('timezone', 'UTC')
         client_time = request.json.get('current_time')
         
-        # If client sends current time, use it; otherwise use server time with user timezone
+        # Use client's local time directly
         if client_time:
-            local_time = datetime.fromisoformat(client_time.replace('Z', '+00:00'))
+            # Parse the ISO string and convert to local time
+            utc_time = datetime.fromisoformat(client_time.replace('Z', '+00:00'))
+            user_tz = pytz.timezone(user_timezone)
+            local_time = utc_time.astimezone(user_tz)
             current_date = local_time.date()
         else:
             user_tz = pytz.timezone(user_timezone)
@@ -5402,9 +5405,12 @@ def toggle_checkout(visitor_id):
         user_timezone = request.json.get('timezone', 'UTC')
         client_time = request.json.get('current_time')
         
-        # If client sends current time, use it; otherwise use server time with user timezone
+        # Use client's local time directly
         if client_time:
-            local_time = datetime.fromisoformat(client_time.replace('Z', '+00:00'))
+            # Parse the ISO string and convert to local time
+            utc_time = datetime.fromisoformat(client_time.replace('Z', '+00:00'))
+            user_tz = pytz.timezone(user_timezone)
+            local_time = utc_time.astimezone(user_tz)
             current_date = local_time.date()
         else:
             user_tz = pytz.timezone(user_timezone)
