@@ -1901,36 +1901,87 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            const img = document.getElementById('preview-' + visitorId);
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                img.src = e.target.result;
-                img.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
+            // Find the correct photo container for this specific appointment
+            // Use the event target to get the correct row context
+            const currentRow = event.target.closest('tr');
+            const photoContainer = currentRow.querySelector('.photo-container');
+            
+            if (photoContainer) {
+                // Remove "No Photo" div if exists
+                const noPhotoDiv = photoContainer.querySelector('.no-photo');
+                if (noPhotoDiv) {
+                    noPhotoDiv.remove();
+                }
+                
+                // Create or update img element with unique ID based on appointment
+                let img = photoContainer.querySelector(`#preview-${visitorId}-${appointmentId}`);
+                if (!img) {
+                    // Also check for old format ID and update it
+                    img = photoContainer.querySelector(`#preview-${visitorId}`);
+                    if (img) {
+                        img.id = `preview-${visitorId}-${appointmentId}`;
+                    } else {
+                        img = document.createElement('img');
+                        img.id = `preview-${visitorId}-${appointmentId}`;
+                        img.alt = 'Visitor Photo';
+                        img.className = 'photo-preview';
+                        photoContainer.appendChild(img);
+                    }
+                }
+                
+                // Set photo source
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    img.src = e.target.result;
+                    img.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
 
-            // Store the appointment ID for later use
-            const checkbox = document.getElementById(`checkin-${visitorId}`);
+            // Hide the upload photo button in Actions column after successful upload
+            const uploadPhotoBtn = event.target.nextElementSibling;
+            if (uploadPhotoBtn && uploadPhotoBtn.textContent.includes('Upload Photo')) {
+                uploadPhotoBtn.style.display = 'none';
+            }
+
+            // Store the appointment ID for later use - find checkbox in current row
+            const checkbox = currentRow.querySelector(`#checkin-${visitorId}`);
             if (checkbox) {
                 checkbox.setAttribute('data-appointment-id', appointmentId);
                 checkbox.checked = true;
             }
 
-            // Enable controls after successful photo upload
-            const checkinControl = document.getElementById(`checkin-${visitorId}`);
-            const redZoneBtn = document.getElementById(`red-zone-btn-${visitorId}`);
+            // Enable controls after successful photo upload - find controls in current row
+            const checkinControl = currentRow.querySelector(`#checkin-${visitorId}`);
+            const redZoneBtn = currentRow.querySelector(`#red-zone-btn-${visitorId}`);
                         
             if (checkinControl) checkinControl.disabled = false;
             if (redZoneBtn) redZoneBtn.disabled = false;
 
-            // Enable print button
-            const printBtn = document.getElementById(`print-btn-${visitorId}`);
+            // Enable print button - find in current row
+            const printBtn = currentRow.querySelector(`#print-btn-${visitorId}`);
             if (printBtn) printBtn.disabled = false;
+
+            // Hide photo upload group and show check-in group - find in current row
+            const photoUploadGroup = currentRow.querySelector(`#photo-upload-group-${visitorId}`);
+            const checkinGroup = currentRow.querySelector(`#checkin-group-${visitorId}`);
+            
+            if (photoUploadGroup) photoUploadGroup.style.display = 'none';
+            if (checkinGroup) checkinGroup.style.display = 'block';
 
             // Automatically trigger check-in
             if (checkbox) {
                 const changeEvent = new Event('change', { bubbles: true });
                 checkbox.dispatchEvent(changeEvent);
+            }
+
+            // Show the out-time photo group after successful check-in only if out time photo is allowed
+            const outTimePhotoGroup = currentRow.querySelector(`#out-time-photo-group-${visitorId}`);
+            const allowCheckoutWithoutPhoto = localStorage.getItem('allowCheckoutWithoutPhoto') === 'true';
+            
+            // Only show out-time photo group if checkout without photo is NOT allowed
+            if (outTimePhotoGroup && !allowCheckoutWithoutPhoto) {
+                outTimePhotoGroup.style.display = 'block';
             }
 
             // Use enhanced print function with retry and fallback
