@@ -2354,7 +2354,13 @@ function updateCheckInStatus(visitorId, isChecked) {
     }
 }
  
-function toggleCheckout(visitorId) {
+function toggleCheckout(visitorId, appointmentId) {
+    // First check if this is a "No Visit" status
+    if (hasNoVisitStatus(visitorId)) {
+        alert('Checkout is not allowed for appointments marked as "No Visit"');
+        return;
+    }
+
     const userTimezone = getUserTimezone();
     
     fetch('/toggle_checkout/' + visitorId, {
@@ -2363,26 +2369,60 @@ function toggleCheckout(visitorId) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            timezone: userTimezone
+            timezone: userTimezone,
+            appointment_id: appointmentId  // Add appointment ID like in uploadPhoto
         })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // Update checkout time with user's local time
-            const checkoutTimeCell = document.getElementById('checkout-time-' + visitorId);
-            checkoutTimeCell.textContent = data.display_time || getCurrentLocalTime();
+            // Find the correct checkout time cell for this specific appointment
+            const currentRow = document.querySelector(`tr[data-visitor-id="${visitorId}"][data-appointment-id="${appointmentId}"]`);
+            if (!currentRow) {
+                // Fallback to find by visitor ID if appointment-specific row not found
+                const allRows = document.querySelectorAll(`tr[data-visitor-id="${visitorId}"]`);
+                for (let row of allRows) {
+                    const checkbox = row.querySelector(`#checkin-${visitorId}`);
+                    if (checkbox && checkbox.getAttribute('data-appointment-id') === appointmentId) {
+                        currentRow = row;
+                        break;
+                    }
+                }
+            }
             
-            // Update status
-            const statusCell = document.getElementById('status-' + visitorId);
-            statusCell.textContent = 'Is Gone';
-            
-            // Hide checkout group and show completed badge
-            const checkoutGroup = document.getElementById('checkout-group-' + visitorId);
-            const completedGroup = document.getElementById('completed-group-' + visitorId);
-            
-            if (checkoutGroup) checkoutGroup.style.display = 'none';
-            if (completedGroup) completedGroup.style.display = 'block';
+            if (currentRow) {
+                // Update checkout time with user's local time in the specific row
+                const checkoutTimeCell = currentRow.querySelector(`#checkout-time-${visitorId}`);
+                if (checkoutTimeCell) {
+                    checkoutTimeCell.textContent = data.display_time || getCurrentLocalTime();
+                }
+                
+                // Update status in the specific row
+                const statusCell = currentRow.querySelector(`#status-${visitorId}`);
+                if (statusCell) {
+                    statusCell.textContent = 'Is Gone';
+                }
+                
+                // Hide checkout group and show completed badge in the specific row
+                const checkoutGroup = currentRow.querySelector(`#checkout-group-${visitorId}`);
+                const completedGroup = currentRow.querySelector(`#completed-group-${visitorId}`);
+                
+                if (checkoutGroup) checkoutGroup.style.display = 'none';
+                if (completedGroup) completedGroup.style.display = 'block';
+            } else {
+                // Fallback to original method if specific row not found
+                const checkoutTimeCell = document.getElementById('checkout-time-' + visitorId);
+                checkoutTimeCell.textContent = data.display_time || getCurrentLocalTime();
+                
+                const statusCell = document.getElementById('status-' + visitorId);
+                statusCell.textContent = 'Is Gone';
+                
+                const checkoutGroup = document.getElementById('checkout-group-' + visitorId);
+                const completedGroup = document.getElementById('completed-group-' + visitorId);
+                
+                if (checkoutGroup) checkoutGroup.style.display = 'none';
+                if (completedGroup) completedGroup.style.display = 'block';
+            }
             
             console.log(`Check-out completed at: ${data.display_time} (${userTimezone})`);
         } else {
@@ -2393,7 +2433,6 @@ function toggleCheckout(visitorId) {
         alert('Error: ' + error.message);
     });
 }
-
 
 function updateCheckoutStatus(visitorId) {
     const checkoutTimeCell = document.getElementById(`checkout-time-${visitorId}`);
