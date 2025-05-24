@@ -5397,10 +5397,8 @@ def toggle_checkin(visitor_id):
 @app.route('/toggle_checkout/<int:visitor_id>', methods=['POST'])
 def toggle_checkout(visitor_id):
     try:
-        # Get user timezone and appointment_id from request
-        request_data = request.json or {}
-        user_timezone = request_data.get('timezone', 'UTC')
-        appointment_id = request_data.get('appointment_id')
+        # Get user timezone from request
+        user_timezone = request.json.get('timezone', 'UTC')
         user_tz = pytz.timezone(user_timezone)
         
         conn = get_db_connection()
@@ -5411,70 +5409,30 @@ def toggle_checkout(visitor_id):
             # Get the current date in user's timezone
             current_date = datetime.now(user_tz).date()
             
-            # If appointment_id is provided, check that specific appointment
-            if appointment_id:
-                cur.execute("""
-                    SELECT vvs.VisitStatus, vvs.InTime, vvs.OutTime, vvs.AppointmentId
-                    FROM VisitorVisitStatus vvs
-                    JOIN VisitorAppointment va ON vvs.AppointmentId = va.AppointmentId
-                    WHERE vvs.VisitorId = %s
-                    AND vvs.AppointmentId = %s
-                    AND DATE(va.AppointmentDate) = %s
-                    ORDER BY vvs.CreatedAt DESC 
-                    LIMIT 1
-                """, (visitor_id, appointment_id, current_date))
-            else:
-                # Fallback to checking today's appointment
-                cur.execute("""
-                    SELECT vvs.VisitStatus, vvs.InTime, vvs.OutTime, vvs.AppointmentId
-                    FROM VisitorVisitStatus vvs
-                    JOIN VisitorAppointment va ON vvs.AppointmentId = va.AppointmentId
-                    WHERE vvs.VisitorId = %s
-                    AND DATE(va.AppointmentDate) = %s
-                    ORDER BY vvs.CreatedAt DESC 
-                    LIMIT 1
-                """, (visitor_id, current_date))
-            
+            # Get current status for today's appointment only (same as check-in logic)
+            cur.execute("""
+                SELECT vvs.VisitStatus, vvs.InTime, vvs.OutTime, vvs.AppointmentId
+                FROM VisitorVisitStatus vvs
+                JOIN VisitorAppointment va ON vvs.AppointmentId = va.AppointmentId
+                WHERE vvs.VisitorId = %s
+                AND DATE(va.AppointmentDate) = %s
+                ORDER BY vvs.CreatedAt DESC 
+                LIMIT 1
+            """, (visitor_id, current_date))
             result = cur.fetchone()
             
             if not result:
-                return jsonify({'success': False, 'error': 'No valid appointment found for today'}), 404
+                return jsonify({'error': 'No valid appointment found for today'}), 404
                 
-            current_status, in_time, out_time, found_appointment_id = result
-            
-            # Use the found appointment_id if not provided in request
-            if not appointment_id:
-                appointment_id = found_appointment_id
+            current_status, in_time, out_time, appointment_id = result
             
             logging.info(f'Current status for VisitorId={visitor_id}, AppointmentId={appointment_id}: {current_status}')
             
-            # Check if already checked out or has no visit status
             if current_status in ['No Visit', 'Is Gone']:
-                return jsonify({
-                    'success': False, 
-                    'error': f'Visitor is already in "{current_status}" status and cannot be checked out again.'
-                }), 400
+                return jsonify({'success': False, 'error': 'Cannot check out a visitor with No Visit or who has already checked out.'}), 400
             
             if current_status != 'Inside':
-                return jsonify({
-                    'success': False, 
-                    'error': 'Visitor must be checked in before checking out.'
-                }), 400
-            
-            # Double-check by verifying the status again right before update
-            # This prevents race conditions from multiple simultaneous requests
-            cur.execute("""
-                SELECT VisitStatus 
-                FROM VisitorVisitStatus 
-                WHERE AppointmentId = %s AND VisitorId = %s
-            """, (appointment_id, visitor_id))
-            
-            latest_status = cur.fetchone()
-            if not latest_status or latest_status[0] != 'Inside':
-                return jsonify({
-                    'success': False, 
-                    'error': 'Visitor status has changed. Please refresh and try again.'
-                }), 400
+                return jsonify({'success': False, 'error': 'Visitor must be checked in before checking out.'}), 400
             
             # Current time in user's timezone
             local_time = datetime.now(user_tz)
@@ -5484,36 +5442,23 @@ def toggle_checkout(visitor_id):
             logging.info(f'Checking out VisitorId={visitor_id}, AppointmentId={appointment_id} at {local_time} ({user_timezone})')
             
             # Update status to 'Is Gone' in VisitorVisitStatus based on AppointmentId
-            # Use a more specific WHERE clause to prevent unintended updates
             cur.execute("""
                 UPDATE VisitorVisitStatus 
-                SET OutTime = %s, VisitStatus = 'Is Gone', UpdatedAt = %s
+                SET OutTime = %s, VisitStatus = 'Is Gone'
                 WHERE AppointmentId = %s
                 AND VisitorId = %s
-                AND VisitStatus = 'Inside'
-            """, (utc_time, utc_time, appointment_id, visitor_id))
-            
-            # Check if the update actually affected any rows
-            if cur.rowcount == 0:
-                return jsonify({
-                    'success': False, 
-                    'error': 'Checkout failed. Visitor may have already been checked out.'
-                }), 400
+            """, (utc_time, appointment_id, visitor_id))
             
             conn.commit()
             logging.info(f'Successfully checked out VisitorId={visitor_id}, AppointmentId={appointment_id}')
-            
             return jsonify({
                 'success': True, 
                 'message': 'Visitor checked out successfully!',
                 'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                'appointment_id': appointment_id
+                'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p')
             })
     
     except Exception as e:
-        if conn:
-            conn.rollback()
         logging.error(f'Error toggling check-out status for VisitorId={visitor_id}: {e}')
         return jsonify({'success': False, 'error': 'An error occurred while updating the check-out status.'}), 500
     
