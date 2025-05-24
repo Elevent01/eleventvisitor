@@ -5406,20 +5406,27 @@ def toggle_checkout(visitor_id):
             return jsonify({'success': False, 'error': 'Database connection error.'}), 500
         
         with conn.cursor() as cur:
-            # Check if the visitor's status allows for checkout
-            cur.execute("""
-                SELECT VisitStatus 
-                FROM VisitorVisitStatus 
-                WHERE VisitorId = %s 
-                ORDER BY CreatedAt DESC 
-                LIMIT 1
-            """, (visitor_id,))
-            result = cur.fetchone()
-            if not result:
-                return jsonify({'success': False, 'error': 'Visitor not found.'}), 404
+            # Get the current date in user's timezone
+            current_date = datetime.now(user_tz).date()
             
-            current_status = result[0]
-            logging.info(f'Current status for VisitorId={visitor_id}: {current_status}')
+            # Get current status for today's appointment only (same as check-in logic)
+            cur.execute("""
+                SELECT vvs.VisitStatus, vvs.InTime, vvs.OutTime, vvs.AppointmentId
+                FROM VisitorVisitStatus vvs
+                JOIN VisitorAppointment va ON vvs.AppointmentId = va.AppointmentId
+                WHERE vvs.VisitorId = %s
+                AND DATE(va.AppointmentDate) = %s
+                ORDER BY vvs.CreatedAt DESC 
+                LIMIT 1
+            """, (visitor_id, current_date))
+            result = cur.fetchone()
+            
+            if not result:
+                return jsonify({'error': 'No valid appointment found for today'}), 404
+                
+            current_status, in_time, out_time, appointment_id = result
+            
+            logging.info(f'Current status for VisitorId={visitor_id}, AppointmentId={appointment_id}: {current_status}')
             
             if current_status in ['No Visit', 'Is Gone']:
                 return jsonify({'success': False, 'error': 'Cannot check out a visitor with No Visit or who has already checked out.'}), 400
@@ -5432,22 +5439,18 @@ def toggle_checkout(visitor_id):
             # Convert to UTC for database storage
             utc_time = local_time.astimezone(pytz.UTC)
             
-            logging.info(f'Checking out VisitorId={visitor_id} at {local_time} ({user_timezone})')
+            logging.info(f'Checking out VisitorId={visitor_id}, AppointmentId={appointment_id} at {local_time} ({user_timezone})')
             
-            # Update status to 'Is Gone' in VisitorVisitStatus
+            # Update status to 'Is Gone' in VisitorVisitStatus based on AppointmentId
             cur.execute("""
                 UPDATE VisitorVisitStatus 
                 SET OutTime = %s, VisitStatus = 'Is Gone'
-                WHERE VisitorId = %s 
-                AND CreatedAt = (
-                    SELECT MAX(CreatedAt) 
-                    FROM VisitorVisitStatus 
-                    WHERE VisitorId = %s
-                )
-            """, (utc_time, visitor_id, visitor_id))
+                WHERE AppointmentId = %s
+                AND VisitorId = %s
+            """, (utc_time, appointment_id, visitor_id))
             
             conn.commit()
-            logging.info(f'Successfully checked out VisitorId={visitor_id}')
+            logging.info(f'Successfully checked out VisitorId={visitor_id}, AppointmentId={appointment_id}')
             return jsonify({
                 'success': True, 
                 'message': 'Visitor checked out successfully!',
