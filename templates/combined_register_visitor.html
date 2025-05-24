@@ -2354,11 +2354,48 @@ function updateCheckInStatus(visitorId, isChecked) {
     }
 }
  
+// Track ongoing checkout requests to prevent duplicates
+const ongoingCheckouts = new Set();
+
 function toggleCheckout(visitorId, appointmentId) {
+    // Create a unique key for this checkout request
+    const checkoutKey = `${visitorId}-${appointmentId || 'default'}`;
+    
+    // Check if this checkout is already in progress
+    if (ongoingCheckouts.has(checkoutKey)) {
+        console.log(`Checkout already in progress for visitor ${visitorId}, appointment ${appointmentId}`);
+        return;
+    }
+
     // First check if this is a "No Visit" status
     if (hasNoVisitStatus(visitorId)) {
         alert('Checkout is not allowed for appointments marked as "No Visit"');
         return;
+    }
+
+    // Check current status before proceeding
+    const statusCell = document.getElementById(`status-${visitorId}`);
+    const currentStatus = statusCell ? statusCell.textContent.trim() : '';
+    
+    // Prevent multiple checkout attempts
+    if (currentStatus === 'Is Gone') {
+        alert('Visitor has already been checked out.');
+        return;
+    }
+    
+    if (currentStatus !== 'Inside') {
+        alert('Visitor must be checked in before checkout.');
+        return;
+    }
+
+    // Add to ongoing checkouts set
+    ongoingCheckouts.add(checkoutKey);
+
+    // Disable the checkout button to prevent multiple clicks
+    const checkoutBtn = document.getElementById(`checkout-btn-${visitorId}`);
+    if (checkoutBtn) {
+        checkoutBtn.disabled = true;
+        checkoutBtn.textContent = 'Processing...';
     }
 
     const userTimezone = getUserTimezone();
@@ -2370,22 +2407,28 @@ function toggleCheckout(visitorId, appointmentId) {
         },
         body: JSON.stringify({
             timezone: userTimezone,
-            appointment_id: appointmentId  // Add appointment ID like in uploadPhoto
+            appointment_id: appointmentId
         })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
             // Find the correct checkout time cell for this specific appointment
-            const currentRow = document.querySelector(`tr[data-visitor-id="${visitorId}"][data-appointment-id="${appointmentId}"]`);
-            if (!currentRow) {
-                // Fallback to find by visitor ID if appointment-specific row not found
-                const allRows = document.querySelectorAll(`tr[data-visitor-id="${visitorId}"]`);
-                for (let row of allRows) {
-                    const checkbox = row.querySelector(`#checkin-${visitorId}`);
-                    if (checkbox && checkbox.getAttribute('data-appointment-id') === appointmentId) {
-                        currentRow = row;
-                        break;
+            let currentRow = null;
+            
+            if (appointmentId) {
+                // Try to find row by appointment ID
+                currentRow = document.querySelector(`tr[data-visitor-id="${visitorId}"][data-appointment-id="${appointmentId}"]`);
+                
+                if (!currentRow) {
+                    // Fallback to find by visitor ID if appointment-specific row not found
+                    const allRows = document.querySelectorAll(`tr[data-visitor-id="${visitorId}"]`);
+                    for (let row of allRows) {
+                        const checkbox = row.querySelector(`#checkin-${visitorId}`);
+                        if (checkbox && checkbox.getAttribute('data-appointment-id') === appointmentId) {
+                            currentRow = row;
+                            break;
+                        }
                     }
                 }
             }
@@ -2409,30 +2452,64 @@ function toggleCheckout(visitorId, appointmentId) {
                 
                 if (checkoutGroup) checkoutGroup.style.display = 'none';
                 if (completedGroup) completedGroup.style.display = 'block';
+                
+                // Disable the checkout button permanently in this row
+                const rowCheckoutBtn = currentRow.querySelector(`#checkout-btn-${visitorId}`);
+                if (rowCheckoutBtn) {
+                    rowCheckoutBtn.disabled = true;
+                    rowCheckoutBtn.textContent = 'Checked Out';
+                }
             } else {
                 // Fallback to original method if specific row not found
                 const checkoutTimeCell = document.getElementById('checkout-time-' + visitorId);
-                checkoutTimeCell.textContent = data.display_time || getCurrentLocalTime();
+                if (checkoutTimeCell) {
+                    checkoutTimeCell.textContent = data.display_time || getCurrentLocalTime();
+                }
                 
                 const statusCell = document.getElementById('status-' + visitorId);
-                statusCell.textContent = 'Is Gone';
+                if (statusCell) {
+                    statusCell.textContent = 'Is Gone';
+                }
                 
                 const checkoutGroup = document.getElementById('checkout-group-' + visitorId);
                 const completedGroup = document.getElementById('completed-group-' + visitorId);
                 
                 if (checkoutGroup) checkoutGroup.style.display = 'none';
                 if (completedGroup) completedGroup.style.display = 'block';
+                
+                // Disable the checkout button permanently
+                if (checkoutBtn) {
+                    checkoutBtn.disabled = true;
+                    checkoutBtn.textContent = 'Checked Out';
+                }
             }
             
             console.log(`Check-out completed at: ${data.display_time} (${userTimezone})`);
+            alert('Visitor checked out successfully!');
         } else {
             alert(data.error || 'Error checking out');
+            // Re-enable the button if there's an error
+            if (checkoutBtn) {
+                checkoutBtn.disabled = false;
+                checkoutBtn.textContent = 'Checkout';
+            }
         }
     })
     .catch(error => {
+        console.error('Checkout error:', error);
         alert('Error: ' + error.message);
+        // Re-enable the button if there's an error
+        if (checkoutBtn) {
+            checkoutBtn.disabled = false;
+            checkoutBtn.textContent = 'Checkout';
+        }
+    })
+    .finally(() => {
+        // Remove from ongoing checkouts set after completion
+        ongoingCheckouts.delete(checkoutKey);
     });
 }
+
 
 function updateCheckoutStatus(visitorId) {
     const checkoutTimeCell = document.getElementById(`checkout-time-${visitorId}`);
