@@ -7760,14 +7760,14 @@ def request_red_zone():
 def get_visitor_details(visitor_id):
     if not session.get('user_id'):
         return jsonify({'success': False, 'error': 'User not logged in'}), 401
-    
+        
     try:
         conn = get_db_connection()
         if conn is None:
             return jsonify({'success': False, 'error': 'Database connection error'}), 500
-        
+            
         with conn.cursor() as cur:
-            # Modified query to ensure we get the most recent appointment and handle missing records
+            # Complete query with all required fields for the print function
             cur.execute("""
                 SELECT 
                     v.VisitorId,
@@ -7787,7 +7787,7 @@ def get_visitor_details(visitor_id):
                     COALESCE(vovs.VisitInOrganization, 'N/A') as VisitInOrganization,
                     va.AppointmentId,
                     vvs.OutTimePhoto,
-                    COALESCE(vzs.company_zone_id, 'N/A') as zone_id
+                    COALESCE(vzs.company_zone_id, vzs.zone_visit_area, 'N/A') as zone_id
                 FROM Visitor v
                 JOIN VisitorAppointment va ON v.VisitorId = va.VisitorId
                 LEFT JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
@@ -7801,7 +7801,7 @@ def get_visitor_details(visitor_id):
             visitor = cur.fetchone()
             
             if visitor:
-                # Format the response
+                # Format the response with all required fields
                 visitor_data = {
                     'name': f"{visitor[1]} {visitor[2]}",
                     'email': visitor[3],
@@ -7822,9 +7822,9 @@ def get_visitor_details(visitor_id):
                 }
                 
                 return jsonify({'success': True, 'visitor': visitor_data})
-            
+                
             return jsonify({'success': False, 'error': 'Visitor not found'}), 404
-
+    
     except Exception as e:
         logging.error(f'Error fetching visitor details: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
