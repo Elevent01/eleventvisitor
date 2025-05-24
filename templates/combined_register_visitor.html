@@ -1715,11 +1715,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const debouncedUpdateControls = debounce(updateControlsBasedOnDates, 100);
 
-    // Add click handlers for checkout buttons
+        // Add click handlers for checkout buttons
     document.querySelectorAll('.toggle-checkout').forEach(button => {
+        let isProcessing = false;
+        
         button.addEventListener('click', function() {
+            if (isProcessing) {
+                return; // Prevent multiple clicks
+            }
+            
+            isProcessing = true;
             const visitorId = this.getAttribute('data-visitor-id');
-            toggleCheckout(visitorId);
+            const appointmentId = this.getAttribute('data-appointment-id');
+            
+            // Reset the processing flag after a delay
+            setTimeout(() => {
+                isProcessing = false;
+            }, 2000);
+            
+            toggleCheckout(visitorId, appointmentId);
         });
     });
 
