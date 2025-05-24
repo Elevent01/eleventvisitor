@@ -2110,6 +2110,7 @@ function loadVisitorsWithTimezone() {
 function updateControlsBasedOnDates() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const allowCheckoutWithoutPhoto = localStorage.getItem('allowCheckoutWithoutPhoto') === 'true';
 
     document.querySelectorAll('.visit-date').forEach(dateElement => {
         const visitorId = dateElement.id.split('-')[2];
@@ -2155,8 +2156,17 @@ function updateControlsBasedOnDates() {
                 controls.outTimeCamera.disabled = false;
                 
                 const outTimePhotoExists = document.getElementById(`out-time-preview-${visitorId}`)?.src || '';
-                const allowCheckoutWithoutPhoto = localStorage.getItem('allowCheckoutWithoutPhoto') === 'true';
                 controls.checkout.disabled = !(outTimePhotoExists || allowCheckoutWithoutPhoto);
+                
+                // Show/hide out-time photo group based on allowCheckoutWithoutPhoto setting
+                const outTimePhotoGroup = document.getElementById(`out-time-photo-group-${visitorId}`);
+                if (outTimePhotoGroup) {
+                    if (allowCheckoutWithoutPhoto) {
+                        outTimePhotoGroup.style.display = 'none';
+                    } else {
+                        outTimePhotoGroup.style.display = 'block';
+                    }
+                }
                 
             } else if (currentStatus !== 'Is Gone') {
                 controls.takePhoto.disabled = false;
@@ -2171,6 +2181,45 @@ function updateControlsBasedOnDates() {
         }
     });
 }
+
+// Add event listener for the document load to handle out-time photo visibility
+document.addEventListener('DOMContentLoaded', function() {
+    const allowCheckoutWithoutPhoto = localStorage.getItem('allowCheckoutWithoutPhoto') === 'true';
+    
+    // Handle out-time photo group visibility on page load
+    document.querySelectorAll('[id^="out-time-photo-group-"]').forEach(outTimePhotoGroup => {
+        const visitorId = outTimePhotoGroup.id.split('-')[4]; // Extract visitor ID from out-time-photo-group-{visitorId}
+        const statusElement = document.getElementById(`status-${visitorId}`);
+        
+        if (statusElement && statusElement.textContent.trim() === 'Inside') {
+            if (allowCheckoutWithoutPhoto) {
+                outTimePhotoGroup.style.display = 'none';
+            } else {
+                outTimePhotoGroup.style.display = 'block';
+            }
+        }
+    });
+    
+    updateControlsBasedOnDates();
+    
+    // Set up observers for status changes
+    const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'characterData' || mutation.type === 'childList') {
+                updateControlsBasedOnDates();
+            }
+        });
+    });
+
+    // Observe all status elements
+    document.querySelectorAll('[id^="status-"]').forEach(element => {
+        observer.observe(element, { 
+            characterData: true, 
+            childList: true, 
+            subtree: true 
+        });
+    });
+});
 
 document.addEventListener('DOMContentLoaded', function() {
     // Disable all check-in related controls for "No Visit" appointments
