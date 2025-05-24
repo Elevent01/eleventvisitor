@@ -282,6 +282,13 @@
             font-weight: 500;
             color: var(--text-dark);
         }
+        [id^="out-time-photo-group-"] {
+            display: none !important;
+        }
+        
+        .show-out-time-photo {
+            display: block !important;
+        }
     </style>
     
 </head>
@@ -1715,7 +1722,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const debouncedUpdateControls = debounce(updateControlsBasedOnDates, 100);
 
-        // Add click handlers for checkout buttons
+    // Add click handlers for checkout buttons
     document.querySelectorAll('.toggle-checkout').forEach(button => {
         let isProcessing = false;
         
@@ -2106,7 +2113,6 @@ function loadVisitorsWithTimezone() {
             reader.readAsDataURL(file);
         }
 
-// Updated function to handle control updates
 function updateControlsBasedOnDates() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -2162,9 +2168,11 @@ function updateControlsBasedOnDates() {
                 const outTimePhotoGroup = document.getElementById(`out-time-photo-group-${visitorId}`);
                 if (outTimePhotoGroup) {
                     if (allowCheckoutWithoutPhoto) {
-                        outTimePhotoGroup.style.display = 'none';
+                        // Remove show class to keep it hidden
+                        outTimePhotoGroup.classList.remove('show-out-time-photo');
                     } else {
-                        outTimePhotoGroup.style.display = 'block';
+                        // Add show class to make it visible
+                        outTimePhotoGroup.classList.add('show-out-time-photo');
                     }
                 }
                 
@@ -2182,7 +2190,7 @@ function updateControlsBasedOnDates() {
     });
 }
 
-// Add event listener for the document load to handle out-time photo visibility
+// Add event listener for the document load
 document.addEventListener('DOMContentLoaded', function() {
     const allowCheckoutWithoutPhoto = localStorage.getItem('allowCheckoutWithoutPhoto') === 'true';
     
@@ -2193,10 +2201,15 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (statusElement && statusElement.textContent.trim() === 'Inside') {
             if (allowCheckoutWithoutPhoto) {
-                outTimePhotoGroup.style.display = 'none';
+                // Keep it hidden (CSS already hides it by default)
+                outTimePhotoGroup.classList.remove('show-out-time-photo');
             } else {
-                outTimePhotoGroup.style.display = 'block';
+                // Show it by adding the show class
+                outTimePhotoGroup.classList.add('show-out-time-photo');
             }
+        } else {
+            // For visitors not inside, keep hidden
+            outTimePhotoGroup.classList.remove('show-out-time-photo');
         }
     });
     
@@ -2572,8 +2585,6 @@ function toggleCheckout(visitorId, appointmentId) {
         ongoingCheckouts.delete(checkoutKey);
     });
 }
-
-
 function updateCheckoutStatus(visitorId) {
     const checkoutTimeCell = document.getElementById(`checkout-time-${visitorId}`);
     const statusCell = document.getElementById(`status-${visitorId}`);
