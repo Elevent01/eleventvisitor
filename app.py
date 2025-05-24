@@ -5390,7 +5390,8 @@ def toggle_checkin(visitor_id):
                     'message': 'Visitor checked in successfully!',
                     'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                    'timestamp': utc_time.strftime('%Y-%m-%d %H:%M:%S')
+                    'timestamp': utc_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'timezone': user_timezone
                 })
             else:
                 return jsonify({'success': False, 'error': 'Visitor is already checked in'}), 400
@@ -5401,6 +5402,7 @@ def toggle_checkin(visitor_id):
     finally:
         if conn:
             conn.close()
+
 @app.route('/toggle_checkout/<int:visitor_id>', methods=['POST'])
 def toggle_checkout(visitor_id):
     try:
@@ -5459,7 +5461,8 @@ def toggle_checkout(visitor_id):
                 'success': True, 
                 'message': 'Visitor checked out successfully!',
                 'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p')
+                'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
+                'timezone': user_timezone
             })
     
     except Exception as e:
