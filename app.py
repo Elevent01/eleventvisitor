@@ -6370,18 +6370,24 @@ def combined_register_visitor():
                             update_fields.append("OutTimePhoto = %s")
                             update_values.append(photo_filename)
 
-                    # Handle check-in time - Modified validation
+                    # Handle check-in time - Modified validation with proper timezone handling
                     check_in_time = request.form.get('check_in_time')
                     if check_in_time:
                         # Only prevent if visitor already has InTime AND it's not a photo upload scenario
                         if current_in_time and 'visitor_photo' not in request.files:
                             return jsonify({'success': False, 'error': 'Visitor is already checked in'}), 400
                         
+                        # Parse the local datetime from frontend and store as-is (no timezone conversion)
+                        try:
+                            local_datetime = datetime.strptime(check_in_time, '%Y-%m-%dT%H:%M')
+                        except ValueError:
+                            return jsonify({'success': False, 'error': 'Invalid datetime format'}), 400
+                        
                         update_fields.append("InTime = %s")
                         update_fields.append("VisitStatus = 'Checked In'")
-                        update_values.append(check_in_time)
+                        update_values.append(local_datetime)
 
-                    # Handle check-out time - Only restrict if already has OutTime
+                    # Handle check-out time - Only restrict if already has OutTime with proper timezone handling
                     check_out_time = request.form.get('check_out_time')
                     if check_out_time:
                         # Only check if visitor already has OutTime set
@@ -6392,9 +6398,15 @@ def combined_register_visitor():
                         if not current_in_time and 'check_in_time' not in request.form:
                             return jsonify({'success': False, 'error': 'Cannot checkout without checking in first'}), 400
                         
+                        # Parse the local datetime from frontend and store as-is (no timezone conversion)
+                        try:
+                            local_datetime = datetime.strptime(check_out_time, '%Y-%m-%dT%H:%M')
+                        except ValueError:
+                            return jsonify({'success': False, 'error': 'Invalid datetime format'}), 400
+                        
                         update_fields.append("OutTime = %s")
                         update_fields.append("VisitStatus = 'Completed'")
-                        update_values.append(check_out_time)
+                        update_values.append(local_datetime)
 
                     if update_fields:
                         # First check if VisitorVisitStatus record exists
@@ -6832,18 +6844,24 @@ def check_in_out():
                             update_fields.append("OutTimePhoto = %s")
                             update_values.append(photo_filename)
 
-                    # Handle check-in time - Only restrict if already has InTime
+                    # Handle check-in time - Store as local time without timezone conversion
                     check_in_time = request.form.get('check_in_time')
                     if check_in_time:
                         # Only check if visitor already has InTime set
                         if current_in_time:
                             return jsonify({'success': False, 'error': 'Visitor is already checked in'}), 400
                         
+                        # Parse the datetime string and store as-is (local time)
+                        try:
+                            local_datetime = datetime.strptime(check_in_time, '%Y-%m-%dT%H:%M')
+                        except ValueError:
+                            return jsonify({'success': False, 'error': 'Invalid datetime format'}), 400
+                        
                         update_fields.append("InTime = %s")
                         update_fields.append("VisitStatus = 'Checked In'")
-                        update_values.append(check_in_time)
+                        update_values.append(local_datetime)
 
-                    # Handle check-out time - Only restrict if already has OutTime
+                    # Handle check-out time - Store as local time without timezone conversion
                     check_out_time = request.form.get('check_out_time')
                     if check_out_time:
                         # Only check if visitor already has OutTime set
@@ -6854,9 +6872,15 @@ def check_in_out():
                         if not current_in_time and 'check_in_time' not in request.form:
                             return jsonify({'success': False, 'error': 'Cannot checkout without checking in first'}), 400
                         
+                        # Parse the datetime string and store as-is (local time)
+                        try:
+                            local_datetime = datetime.strptime(check_out_time, '%Y-%m-%dT%H:%M')
+                        except ValueError:
+                            return jsonify({'success': False, 'error': 'Invalid datetime format'}), 400
+                        
                         update_fields.append("OutTime = %s")
                         update_fields.append("VisitStatus = 'Completed'")
-                        update_values.append(check_out_time)
+                        update_values.append(local_datetime)
 
                     if update_fields:
                         # First check if VisitorVisitStatus record exists
