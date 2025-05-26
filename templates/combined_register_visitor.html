@@ -1513,101 +1513,6 @@ function generatePrintContent(visitorData) {
     });
 }
 
-
-function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
-    // First check if this is a "No Visit" status
-    if (hasNoVisitStatus(visitorId)) {
-        alert('Photo upload is not allowed for appointments marked as "No Visit"');
-        event.target.value = ''; // Clear the file input
-        return;
-    }
-
-    // Check zone status only if it's pending
-    if (zoneStatus === 'pending') {
-        alert('Photo upload is not allowed until zone status is approved.');
-        event.target.value = '';
-        return;
-    }
-
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('photo', file);
-    formData.append('appointment_id', appointmentId);
-    
-    fetch('/upload_visitor_photo', { 
-        method: 'POST', 
-        body: formData 
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const img = document.getElementById('preview-' + visitorId);
-            const reader = new FileReader();
-            reader.onload = function(e) { 
-                img.src = e.target.result; 
-                img.style.display = 'block'; 
-            };
-            reader.readAsDataURL(file);
-
-            // Automatically check-in the visitor
-            const checkbox = document.getElementById(`checkin-${visitorId}`);
-            if (checkbox && !checkbox.checked) {
-                checkbox.checked = true;
-                toggleCheckIn(visitorId, true);
-            }
-
-            // Enable controls after successful photo upload
-            document.getElementById(`checkin-${visitorId}`).disabled = false;
-            document.getElementById(`red-zone-btn-${visitorId}`).disabled = false;
-
-            // Enable print button and trigger print
-            const printBtn = document.getElementById(`print-btn-${visitorId}`);
-            if (printBtn) {
-                printBtn.disabled = false;
-                printVisitorDetails(visitorId);
-            }
-        } else {
-            alert(data.error || 'Error uploading photo');
-        }
-    })
-    .catch(error => {
-        alert('Error uploading photo: ' + error.message);
-    });
-}
-
-// New function to generate and print visit pass
-function generateVisitPass(visitorId, appointmentId) {
-    fetch('/generate_visit_pass', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-            visitor_id: visitorId, 
-            appointment_id: appointmentId 
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // If the backend generates a pass, open print dialog
-            const printWindow = window.open('/print_visit_pass/' + appointmentId, '_blank');
-            if (printWindow) {
-                printWindow.print();
-            } else {
-                alert('Please enable pop-ups to print the visit pass');
-            }
-        } else {
-            alert(data.error || 'Error generating visit pass');
-        }
-    })
-    .catch(error => {
-        alert('Error generating visit pass: ' + error.message);
-    });
-}
-
 function loadVisitorsWithTimezone() {
     const userTimezone = getUserTimezone();
     
@@ -2720,7 +2625,7 @@ function disablePhotoUploadForNoVisit() {
             photoUploadInput.parentElement.classList.add('disabled-upload');
         }
     });
-}     
+}
     </script>
     {% endblock %}
 </body>
