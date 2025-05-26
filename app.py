@@ -5212,19 +5212,17 @@ def upload_visitor_photo():
             
             # Check if this is a new photo upload and visitor hasn't checked in yet
             if not current_in_time and current_status not in ['Inside', 'Completed']:
-                # Get current time in user's timezone
+                # Get current time in user's LOCAL timezone (not UTC)
                 local_time = datetime.now(user_tz)
-                # Convert to UTC for database storage
-                utc_time = local_time.astimezone(pytz.UTC)
                 
-                logging.info(f'Auto check-in: Local time: {local_time} ({user_timezone}), UTC time: {utc_time}')
+                logging.info(f'Auto check-in: Local time: {local_time} ({user_timezone}) - storing as local time')
                 
-                # Update with photo and auto check-in
+                # Store LOCAL time directly in database (not UTC)
                 cur.execute("""
                     UPDATE VisitorVisitStatus 
                     SET InTimePhoto = %s, VisitStatus = 'Inside', InTime = %s
                     WHERE AppointmentId = %s
-                """, (photo_filename, utc_time, appointment_id))
+                """, (photo_filename, local_time.replace(tzinfo=None), appointment_id))
                 auto_checkin = True
             else:
                 # Just update the photo
@@ -5257,7 +5255,6 @@ def upload_visitor_photo():
                     'auto_checkin': True,
                     'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                    'utc_time': local_time.astimezone(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S'),
                     'timezone': user_timezone
                 })
 
@@ -5357,19 +5354,14 @@ def toggle_checkin(visitor_id):
             return jsonify({'success': False, 'error': 'Database connection error.'}), 500
             
         with conn.cursor() as cur:
-            # Parse the client's current time and localize it to their timezone
+            # Get current time in user's LOCAL timezone
             if client_current_time:
-                # Parse the ISO string from client
+                # Parse the ISO string from client and convert to user's timezone
                 client_dt = datetime.fromisoformat(client_current_time.replace('Z', '+00:00'))
-                # Convert to user's timezone
                 local_time = client_dt.astimezone(user_tz)
-                # Convert to UTC for database storage
-                utc_time = client_dt.astimezone(pytz.UTC)
             else:
-                # Fallback: get server time and convert to user timezone for display
-                server_utc = datetime.now(pytz.UTC)
-                local_time = server_utc.astimezone(user_tz)
-                utc_time = server_utc
+                # Fallback: get current time in user's timezone
+                local_time = datetime.now(user_tz)
             
             # Get the current date in user's timezone for appointment lookup
             current_date = local_time.date()
@@ -5391,7 +5383,7 @@ def toggle_checkin(visitor_id):
                 
             current_status, in_time, out_time, appointment_id = result
             
-            logging.info(f'Manual check-in: VisitorId={visitor_id}, Local time: {local_time} ({user_timezone}), UTC time: {utc_time}')
+            logging.info(f'Manual check-in: VisitorId={visitor_id}, Local time: {local_time} ({user_timezone}) - storing as local time')
             
             # Only update if the status isn't already 'Inside'
             if current_status != 'Inside' and not in_time:
@@ -5402,7 +5394,7 @@ def toggle_checkin(visitor_id):
                     WHERE AppointmentId = %s
                     AND VisitorId = %s
                     RETURNING VisitStatus
-                """, (utc_time, appointment_id, visitor_id))
+                """, (local_time.replace(tzinfo=None), appointment_id, visitor_id))
                 new_status = 'Inside'
                 
                 conn.commit()
@@ -5414,7 +5406,6 @@ def toggle_checkin(visitor_id):
                     'message': 'Visitor checked in successfully!',
                     'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                    'utc_timestamp': utc_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'timezone': user_timezone
                 })
             else:
@@ -5443,19 +5434,14 @@ def toggle_checkout(visitor_id):
             return jsonify({'success': False, 'error': 'Database connection error.'}), 500
         
         with conn.cursor() as cur:
-            # Parse the client's current time and localize it to their timezone
+            # Get current time in user's LOCAL timezone
             if client_current_time:
-                # Parse the ISO string from client
+                # Parse the ISO string from client and convert to user's timezone
                 client_dt = datetime.fromisoformat(client_current_time.replace('Z', '+00:00'))
-                # Convert to user's timezone for display
                 local_time = client_dt.astimezone(user_tz)
-                # Use client time in UTC for database storage
-                utc_time = client_dt.astimezone(pytz.UTC)
             else:
-                # Fallback: get server time and convert to user timezone for display
-                server_utc = datetime.now(pytz.UTC)
-                local_time = server_utc.astimezone(user_tz)
-                utc_time = server_utc
+                # Fallback: get current time in user's timezone
+                local_time = datetime.now(user_tz)
             
             # Check if the visitor's status allows for checkout
             cur.execute("""
@@ -5478,9 +5464,9 @@ def toggle_checkout(visitor_id):
             if current_status != 'Inside':
                 return jsonify({'success': False, 'error': 'Visitor must be checked in before checking out.'}), 400
             
-            logging.info(f'Check-out: VisitorId={visitor_id}, Local time: {local_time} ({user_timezone}), UTC time: {utc_time}')
+            logging.info(f'Check-out: VisitorId={visitor_id}, Local time: {local_time} ({user_timezone}) - storing as local time')
             
-            # Update status to 'Is Gone' in VisitorVisitStatus
+            # Store LOCAL time directly in database (not UTC)
             cur.execute("""
                 UPDATE VisitorVisitStatus 
                 SET OutTime = %s, VisitStatus = 'Is Gone'
@@ -5490,7 +5476,7 @@ def toggle_checkout(visitor_id):
                     FROM VisitorVisitStatus 
                     WHERE VisitorId = %s
                 )
-            """, (utc_time, visitor_id, visitor_id))
+            """, (local_time.replace(tzinfo=None), visitor_id, visitor_id))
             
             conn.commit()
             logging.info(f'Successfully checked out VisitorId={visitor_id}')
@@ -5499,7 +5485,6 @@ def toggle_checkout(visitor_id):
                 'message': 'Visitor checked out successfully!',
                 'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
                 'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                'utc_timestamp': utc_time.strftime('%Y-%m-%d %H:%M:%S'),
                 'timezone': user_timezone,
                 'appointment_id': appointment_id
             })
@@ -5511,7 +5496,6 @@ def toggle_checkout(visitor_id):
     finally:
         if conn:
             conn.close()
-
 
 @app.route('/get_visitors_data', methods=['GET'])
 def get_visitors_data():
