@@ -1576,61 +1576,6 @@ function displayTimezoneInfo() {
     }, 1000);
 }
 
-// Get user timezone
-function getUserTimezone() {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
-
-// Get current local time in proper format for database
-function getCurrentLocalTime() {
-    return new Date().toLocaleString('en-IN', {
-        timeZone: getUserTimezone(),
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
-    });
-}
-
-// Get local time in database format (YYYY-MM-DD HH:MM:SS)
-function getLocalTimeForDatabase() {
-    const now = new Date();
-    const userTimezone = getUserTimezone();
-    
-    // Create local time string in database format
-    const localTimeString = now.toLocaleString('sv-SE', {
-        timeZone: userTimezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-    });
-    
-    return localTimeString;
-}
-
-function formatLocalTime(utcTimeString) {
-    if (!utcTimeString) return '';
-    
-    const utcDate = new Date(utcTimeString + 'Z'); // Add Z to indicate UTC
-    return utcDate.toLocaleString('en-IN', {
-        timeZone: getUserTimezone(),
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
-    });
-}
-
 // Initialize timezone support on page load
 document.addEventListener('DOMContentLoaded', function() {
     console.log('User Timezone:', getUserTimezone());
@@ -1874,12 +1819,6 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
     formData.append('visitor_photo', file);
     formData.append('appointment_id', appointmentId);
     formData.append('timezone', getUserTimezone());
-    
-    // FIXED: Add proper local time for database storage
-    const localTime = getLocalTimeForDatabase();
-    formData.append('local_checkin_time', localTime);
-    
-    console.log('Uploading photo with local time:', localTime, 'in timezone:', getUserTimezone());
         
     fetch('/combined_register_visitor', {
         method: 'POST',
@@ -1889,6 +1828,7 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
     .then(data => {
         if (data.success) {
             // Find the correct photo container for this specific appointment
+            // Use the event target to get the correct row context
             const currentRow = event.target.closest('tr');
             const photoContainer = currentRow.querySelector('.photo-container');
             
@@ -1937,18 +1877,18 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
                 checkbox.checked = true;
             }
 
-            // Enable controls after successful photo upload
+            // Enable controls after successful photo upload - find controls in current row
             const checkinControl = currentRow.querySelector(`#checkin-${visitorId}`);
             const redZoneBtn = currentRow.querySelector(`#red-zone-btn-${visitorId}`);
                         
             if (checkinControl) checkinControl.disabled = false;
             if (redZoneBtn) redZoneBtn.disabled = false;
 
-            // Enable print button
+            // Enable print button - find in current row
             const printBtn = currentRow.querySelector(`#print-btn-${visitorId}`);
             if (printBtn) printBtn.disabled = false;
 
-            // Hide photo upload group and show check-in group
+            // Hide photo upload group and show check-in group - find in current row
             const photoUploadGroup = currentRow.querySelector(`#photo-upload-group-${visitorId}`);
             const checkinGroup = currentRow.querySelector(`#checkin-group-${visitorId}`);
             
@@ -1979,7 +1919,6 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
         }
     })
     .catch(error => {
-        console.error('Photo upload error:', error);
         alert('Error uploading photo: ' + error.message);
     });
 }
@@ -2319,11 +2258,7 @@ function toggleCheckIn(visitorId, isChecked) {
     }
 
     const userTimezone = getUserTimezone();
-    
-    // FIXED: Generate proper local time for database storage
-    const localTime = getLocalTimeForDatabase();
-    
-    console.log('Manual check-in with local time:', localTime, 'in timezone:', userTimezone);
+    const currentTime = new Date().toISOString(); // Client's actual current time
     
     fetch('/toggle_checkin/' + visitorId, {
         method: 'POST',
@@ -2333,7 +2268,7 @@ function toggleCheckIn(visitorId, isChecked) {
         body: JSON.stringify({ 
             check_in: 'checked',
             timezone: userTimezone,
-            local_checkin_time: localTime
+            current_time: currentTime
         })
     })
     .then(response => response.json())
@@ -2341,8 +2276,7 @@ function toggleCheckIn(visitorId, isChecked) {
         if (data.success) {
             // Update check-in time with user's local time
             const checkinTimeCell = document.getElementById('checkin-time-' + visitorId);
-            const displayTime = getCurrentLocalTime();
-            checkinTimeCell.textContent = displayTime;
+            checkinTimeCell.textContent = data.display_time || getCurrentLocalTime();
             
             // Update status
             const statusCell = document.getElementById('status-' + visitorId);
@@ -2362,7 +2296,7 @@ function toggleCheckIn(visitorId, isChecked) {
                 checkbox.disabled = true;
             }
             
-            console.log(`Check-in completed at: ${displayTime} (${userTimezone})`);
+            console.log(`Check-in completed at: ${data.display_time} (${userTimezone})`);
         } else {
             alert(data.error || 'Error checking in');
             // Uncheck the checkbox if check-in fails
@@ -2371,14 +2305,12 @@ function toggleCheckIn(visitorId, isChecked) {
         }
     })
     .catch(error => {
-        console.error('Check-in error:', error);
         alert('Error: ' + error.message);
         // Uncheck the checkbox if an error occurs
         const checkbox = document.getElementById(`checkin-${visitorId}`);
         if (checkbox) checkbox.checked = false;
     });
 }
-
 
 
 function updateCheckInStatus(visitorId, isChecked) {
@@ -2450,11 +2382,7 @@ function toggleCheckout(visitorId, appointmentId) {
     }
 
     const userTimezone = getUserTimezone();
-    
-    // FIXED: Generate proper local time for database storage
-    const localTime = getLocalTimeForDatabase();
-    
-    console.log('Checkout with local time:', localTime, 'in timezone:', userTimezone);
+    const currentTime = new Date().toISOString(); // Client's actual current time
     
     fetch('/toggle_checkout/' + visitorId, {
         method: 'POST',
@@ -2463,7 +2391,7 @@ function toggleCheckout(visitorId, appointmentId) {
         },
         body: JSON.stringify({
             timezone: userTimezone,
-            local_checkout_time: localTime,
+            current_time: currentTime,
             appointment_id: appointmentId
         })
     })
@@ -2490,14 +2418,11 @@ function toggleCheckout(visitorId, appointmentId) {
                 }
             }
             
-            // Generate display time
-            const displayTime = getCurrentLocalTime();
-            
             if (currentRow) {
                 // Update checkout time with user's local time in the specific row
                 const checkoutTimeCell = currentRow.querySelector(`#checkout-time-${visitorId}`);
                 if (checkoutTimeCell) {
-                    checkoutTimeCell.textContent = displayTime;
+                    checkoutTimeCell.textContent = data.display_time || getCurrentLocalTime();
                 }
                 
                 // Update status in the specific row
@@ -2523,7 +2448,7 @@ function toggleCheckout(visitorId, appointmentId) {
                 // Fallback to original method if specific row not found
                 const checkoutTimeCell = document.getElementById('checkout-time-' + visitorId);
                 if (checkoutTimeCell) {
-                    checkoutTimeCell.textContent = displayTime;
+                    checkoutTimeCell.textContent = data.display_time || getCurrentLocalTime();
                 }
                 
                 const statusCell = document.getElementById('status-' + visitorId);
@@ -2544,7 +2469,7 @@ function toggleCheckout(visitorId, appointmentId) {
                 }
             }
             
-            console.log(`Check-out completed at: ${displayTime} (${userTimezone})`);
+            console.log(`Check-out completed at: ${data.display_time} (${userTimezone})`);
             alert('Visitor checked out successfully!');
         } else {
             alert(data.error || 'Error checking out');
