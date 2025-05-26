@@ -2721,6 +2721,15 @@ function disablePhotoUploadForNoVisit() {
         }
     });
 }
+function addTimezoneToForm(formData) {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    formData.append('timezone', timezone);
+}
+
+// For AJAX calls, add timezone to the JSON data:
+function getTimezone() {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}        
     </script>
     {% endblock %}
 </body>
