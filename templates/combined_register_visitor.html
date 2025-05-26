@@ -1819,6 +1819,19 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
     formData.append('visitor_photo', file);
     formData.append('appointment_id', appointmentId);
     formData.append('timezone', getUserTimezone());
+    
+    // Add local time for database storage
+    const localTime = new Date().toLocaleString('en-CA', {
+        timeZone: getUserTimezone(),
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }).replace(', ', ' ');
+    formData.append('local_checkin_time', localTime);
         
     fetch('/combined_register_visitor', {
         method: 'POST',
@@ -2258,7 +2271,18 @@ function toggleCheckIn(visitorId, isChecked) {
     }
 
     const userTimezone = getUserTimezone();
-    const currentTime = new Date().toISOString(); // Client's actual current time
+    
+    // Generate local time for database storage
+    const localTime = new Date().toLocaleString('en-CA', {
+        timeZone: userTimezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }).replace(', ', ' ');
     
     fetch('/toggle_checkin/' + visitorId, {
         method: 'POST',
@@ -2268,7 +2292,7 @@ function toggleCheckIn(visitorId, isChecked) {
         body: JSON.stringify({ 
             check_in: 'checked',
             timezone: userTimezone,
-            current_time: currentTime
+            local_checkin_time: localTime
         })
     })
     .then(response => response.json())
@@ -2276,7 +2300,17 @@ function toggleCheckIn(visitorId, isChecked) {
         if (data.success) {
             // Update check-in time with user's local time
             const checkinTimeCell = document.getElementById('checkin-time-' + visitorId);
-            checkinTimeCell.textContent = data.display_time || getCurrentLocalTime();
+            const displayTime = new Date().toLocaleString('en-IN', {
+                timeZone: userTimezone,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+            checkinTimeCell.textContent = displayTime;
             
             // Update status
             const statusCell = document.getElementById('status-' + visitorId);
@@ -2296,7 +2330,7 @@ function toggleCheckIn(visitorId, isChecked) {
                 checkbox.disabled = true;
             }
             
-            console.log(`Check-in completed at: ${data.display_time} (${userTimezone})`);
+            console.log(`Check-in completed at: ${displayTime} (${userTimezone})`);
         } else {
             alert(data.error || 'Error checking in');
             // Uncheck the checkbox if check-in fails
@@ -2382,7 +2416,18 @@ function toggleCheckout(visitorId, appointmentId) {
     }
 
     const userTimezone = getUserTimezone();
-    const currentTime = new Date().toISOString(); // Client's actual current time
+    
+    // Generate local time for database storage
+    const localTime = new Date().toLocaleString('en-CA', {
+        timeZone: userTimezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }).replace(', ', ' ');
     
     fetch('/toggle_checkout/' + visitorId, {
         method: 'POST',
@@ -2391,7 +2436,7 @@ function toggleCheckout(visitorId, appointmentId) {
         },
         body: JSON.stringify({
             timezone: userTimezone,
-            current_time: currentTime,
+            local_checkout_time: localTime,
             appointment_id: appointmentId
         })
     })
@@ -2418,11 +2463,23 @@ function toggleCheckout(visitorId, appointmentId) {
                 }
             }
             
+            // Generate display time
+            const displayTime = new Date().toLocaleString('en-IN', {
+                timeZone: userTimezone,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            });
+            
             if (currentRow) {
                 // Update checkout time with user's local time in the specific row
                 const checkoutTimeCell = currentRow.querySelector(`#checkout-time-${visitorId}`);
                 if (checkoutTimeCell) {
-                    checkoutTimeCell.textContent = data.display_time || getCurrentLocalTime();
+                    checkoutTimeCell.textContent = displayTime;
                 }
                 
                 // Update status in the specific row
@@ -2448,7 +2505,7 @@ function toggleCheckout(visitorId, appointmentId) {
                 // Fallback to original method if specific row not found
                 const checkoutTimeCell = document.getElementById('checkout-time-' + visitorId);
                 if (checkoutTimeCell) {
-                    checkoutTimeCell.textContent = data.display_time || getCurrentLocalTime();
+                    checkoutTimeCell.textContent = displayTime;
                 }
                 
                 const statusCell = document.getElementById('status-' + visitorId);
@@ -2469,7 +2526,7 @@ function toggleCheckout(visitorId, appointmentId) {
                 }
             }
             
-            console.log(`Check-out completed at: ${data.display_time} (${userTimezone})`);
+            console.log(`Check-out completed at: ${displayTime} (${userTimezone})`);
             alert('Visitor checked out successfully!');
         } else {
             alert(data.error || 'Error checking out');
