@@ -5345,9 +5345,11 @@ def upload_out_time_photo():
 @app.route('/toggle_checkin/<int:visitor_id>', methods=['POST'])
 def toggle_checkin(visitor_id):
     try:
-        # Get user timezone from request
+        # Get user timezone and current time from request
         request_data = request.get_json()
         user_timezone = request_data.get('timezone', 'UTC')
+        client_current_time = request_data.get('current_time')  # ISO string from client
+        
         user_tz = pytz.timezone(user_timezone)
         
         conn = get_db_connection()
@@ -5355,8 +5357,22 @@ def toggle_checkin(visitor_id):
             return jsonify({'success': False, 'error': 'Database connection error.'}), 500
             
         with conn.cursor() as cur:
-            # Get the current date in user's timezone
-            current_date = datetime.now(user_tz).date()
+            # Parse the client's current time and localize it to their timezone
+            if client_current_time:
+                # Parse the ISO string from client
+                client_dt = datetime.fromisoformat(client_current_time.replace('Z', '+00:00'))
+                # Convert to user's timezone
+                local_time = client_dt.astimezone(user_tz)
+                # Convert to UTC for database storage
+                utc_time = client_dt.astimezone(pytz.UTC)
+            else:
+                # Fallback: get server time and convert to user timezone for display
+                server_utc = datetime.now(pytz.UTC)
+                local_time = server_utc.astimezone(user_tz)
+                utc_time = server_utc
+            
+            # Get the current date in user's timezone for appointment lookup
+            current_date = local_time.date()
             
             # Get current status for today's appointment only
             cur.execute("""
@@ -5374,11 +5390,6 @@ def toggle_checkin(visitor_id):
                 return jsonify({'success': False, 'error': 'No valid appointment found for today'}), 404
                 
             current_status, in_time, out_time, appointment_id = result
-            
-            # Current time in user's timezone
-            local_time = datetime.now(user_tz)
-            # Convert to UTC for database storage
-            utc_time = local_time.astimezone(pytz.UTC)
             
             logging.info(f'Manual check-in: VisitorId={visitor_id}, Local time: {local_time} ({user_timezone}), UTC time: {utc_time}')
             
@@ -5420,9 +5431,11 @@ def toggle_checkin(visitor_id):
 @app.route('/toggle_checkout/<int:visitor_id>', methods=['POST'])
 def toggle_checkout(visitor_id):
     try:
-        # Get user timezone from request
+        # Get user timezone and current time from request
         request_data = request.get_json()
         user_timezone = request_data.get('timezone', 'UTC')
+        client_current_time = request_data.get('current_time')  # ISO string from client
+        
         user_tz = pytz.timezone(user_timezone)
         
         conn = get_db_connection()
@@ -5430,6 +5443,20 @@ def toggle_checkout(visitor_id):
             return jsonify({'success': False, 'error': 'Database connection error.'}), 500
         
         with conn.cursor() as cur:
+            # Parse the client's current time and localize it to their timezone
+            if client_current_time:
+                # Parse the ISO string from client
+                client_dt = datetime.fromisoformat(client_current_time.replace('Z', '+00:00'))
+                # Convert to user's timezone for display
+                local_time = client_dt.astimezone(user_tz)
+                # Use client time in UTC for database storage
+                utc_time = client_dt.astimezone(pytz.UTC)
+            else:
+                # Fallback: get server time and convert to user timezone for display
+                server_utc = datetime.now(pytz.UTC)
+                local_time = server_utc.astimezone(user_tz)
+                utc_time = server_utc
+            
             # Check if the visitor's status allows for checkout
             cur.execute("""
                 SELECT VisitStatus, AppointmentId
@@ -5450,11 +5477,6 @@ def toggle_checkout(visitor_id):
             
             if current_status != 'Inside':
                 return jsonify({'success': False, 'error': 'Visitor must be checked in before checking out.'}), 400
-            
-            # Current time in user's timezone
-            local_time = datetime.now(user_tz)
-            # Convert to UTC for database storage
-            utc_time = local_time.astimezone(pytz.UTC)
             
             logging.info(f'Check-out: VisitorId={visitor_id}, Local time: {local_time} ({user_timezone}), UTC time: {utc_time}')
             
