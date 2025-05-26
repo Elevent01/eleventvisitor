@@ -5212,9 +5212,12 @@ def upload_visitor_photo():
             
             # Check if this is a new photo upload and visitor hasn't checked in yet
             if not current_in_time and current_status not in ['Inside', 'Completed']:
-                # Auto check-in with timezone support
+                # Get current time in user's timezone
                 local_time = datetime.now(user_tz)
+                # Convert to UTC for database storage
                 utc_time = local_time.astimezone(pytz.UTC)
+                
+                logging.info(f'Auto check-in: Local time: {local_time} ({user_timezone}), UTC time: {utc_time}')
                 
                 # Update with photo and auto check-in
                 cur.execute("""
@@ -5253,7 +5256,9 @@ def upload_visitor_photo():
                 response_data.update({
                     'auto_checkin': True,
                     'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
-                    'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p')
+                    'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
+                    'utc_time': local_time.astimezone(pytz.UTC).strftime('%Y-%m-%d %H:%M:%S'),
+                    'timezone': user_timezone
                 })
 
             return jsonify(response_data)
@@ -5277,6 +5282,8 @@ def upload_out_time_photo():
         return jsonify({'success': False, 'error': 'No selected photo.'}), 400
     
     visitor_id = request.form.get('visitor_id')
+    user_timezone = request.form.get('timezone', 'UTC')
+    
     conn = get_db_connection()
     
     if conn is None:
@@ -5321,7 +5328,11 @@ def upload_out_time_photo():
                 """, (photo_filename, visitor_id, visitor_id))
                 conn.commit()
         
-        return jsonify({'success': True, 'message': 'Out time photo uploaded successfully!'})
+        return jsonify({
+            'success': True, 
+            'message': 'Out time photo uploaded successfully!',
+            'timezone': user_timezone
+        })
     
     except Exception as e:
         logging.error(f'Error uploading out time photo: {e}')
@@ -5329,12 +5340,14 @@ def upload_out_time_photo():
     
     finally:
         conn.close()
-        
+
+
 @app.route('/toggle_checkin/<int:visitor_id>', methods=['POST'])
 def toggle_checkin(visitor_id):
     try:
         # Get user timezone from request
-        user_timezone = request.json.get('timezone', 'UTC')
+        request_data = request.get_json()
+        user_timezone = request_data.get('timezone', 'UTC')
         user_tz = pytz.timezone(user_timezone)
         
         conn = get_db_connection()
@@ -5367,7 +5380,7 @@ def toggle_checkin(visitor_id):
             # Convert to UTC for database storage
             utc_time = local_time.astimezone(pytz.UTC)
             
-            logging.info(f'Checking in VisitorId={visitor_id} at {local_time} ({user_timezone})')
+            logging.info(f'Manual check-in: VisitorId={visitor_id}, Local time: {local_time} ({user_timezone}), UTC time: {utc_time}')
             
             # Only update if the status isn't already 'Inside'
             if current_status != 'Inside' and not in_time:
@@ -5390,7 +5403,7 @@ def toggle_checkin(visitor_id):
                     'message': 'Visitor checked in successfully!',
                     'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                    'timestamp': utc_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'utc_timestamp': utc_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'timezone': user_timezone
                 })
             else:
@@ -5403,11 +5416,13 @@ def toggle_checkin(visitor_id):
         if conn:
             conn.close()
 
+
 @app.route('/toggle_checkout/<int:visitor_id>', methods=['POST'])
 def toggle_checkout(visitor_id):
     try:
         # Get user timezone from request
-        user_timezone = request.json.get('timezone', 'UTC')
+        request_data = request.get_json()
+        user_timezone = request_data.get('timezone', 'UTC')
         user_tz = pytz.timezone(user_timezone)
         
         conn = get_db_connection()
@@ -5417,7 +5432,7 @@ def toggle_checkout(visitor_id):
         with conn.cursor() as cur:
             # Check if the visitor's status allows for checkout
             cur.execute("""
-                SELECT VisitStatus 
+                SELECT VisitStatus, AppointmentId
                 FROM VisitorVisitStatus 
                 WHERE VisitorId = %s 
                 ORDER BY CreatedAt DESC 
@@ -5427,7 +5442,7 @@ def toggle_checkout(visitor_id):
             if not result:
                 return jsonify({'success': False, 'error': 'Visitor not found.'}), 404
             
-            current_status = result[0]
+            current_status, appointment_id = result
             logging.info(f'Current status for VisitorId={visitor_id}: {current_status}')
             
             if current_status in ['No Visit', 'Is Gone']:
@@ -5441,7 +5456,7 @@ def toggle_checkout(visitor_id):
             # Convert to UTC for database storage
             utc_time = local_time.astimezone(pytz.UTC)
             
-            logging.info(f'Checking out VisitorId={visitor_id} at {local_time} ({user_timezone})')
+            logging.info(f'Check-out: VisitorId={visitor_id}, Local time: {local_time} ({user_timezone}), UTC time: {utc_time}')
             
             # Update status to 'Is Gone' in VisitorVisitStatus
             cur.execute("""
@@ -5462,12 +5477,86 @@ def toggle_checkout(visitor_id):
                 'message': 'Visitor checked out successfully!',
                 'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
                 'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                'timezone': user_timezone
+                'utc_timestamp': utc_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'timezone': user_timezone,
+                'appointment_id': appointment_id
             })
     
     except Exception as e:
         logging.error(f'Error toggling check-out status for VisitorId={visitor_id}: {e}')
         return jsonify({'success': False, 'error': 'An error occurred while updating the check-out status.'}), 500
+    
+    finally:
+        if conn:
+            conn.close()
+
+
+@app.route('/get_visitors_data', methods=['GET'])
+def get_visitors_data():
+    try:
+        user_timezone = request.args.get('timezone', 'UTC')
+        user_tz = pytz.timezone(user_timezone)
+        
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({'success': False, 'error': 'Database connection error.'}), 500
+        
+        with conn.cursor() as cur:
+            # Get today's date in user's timezone
+            today = datetime.now(user_tz).date()
+            
+            cur.execute("""
+                SELECT 
+                    v.VisitorId, v.FirstName, v.LastName, v.Email, v.Phone,
+                    va.AppointmentDate, va.VisitPurpose, va.HostName,
+                    vvs.VisitStatus, vvs.InTime, vvs.OutTime, vvs.InTimePhoto, vvs.OutTimePhoto
+                FROM Visitor v
+                JOIN VisitorAppointment va ON v.VisitorId = va.VisitorId
+                LEFT JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
+                WHERE DATE(va.AppointmentDate) = %s
+                ORDER BY va.AppointmentDate DESC, v.FirstName
+            """, (today,))
+            
+            visitors = []
+            for row in cur.fetchall():
+                visitor_data = {
+                    'visitor_id': row[0],
+                    'first_name': row[1],
+                    'last_name': row[2],
+                    'email': row[3],
+                    'phone': row[4],
+                    'appointment_date': row[5].strftime('%Y-%m-%d') if row[5] else None,
+                    'visit_purpose': row[6],
+                    'host_name': row[7],
+                    'visit_status': row[8] or 'Pending',
+                    'in_time_local': None,
+                    'out_time_local': None,
+                    'in_time_photo': row[11],
+                    'out_time_photo': row[12]
+                }
+                
+                # Convert UTC times to user's local timezone
+                if row[9]:  # InTime
+                    utc_in_time = row[9].replace(tzinfo=pytz.UTC)
+                    local_in_time = utc_in_time.astimezone(user_tz)
+                    visitor_data['in_time_local'] = local_in_time.strftime('%d/%m/%Y %I:%M:%S %p')
+                
+                if row[10]:  # OutTime
+                    utc_out_time = row[10].replace(tzinfo=pytz.UTC)
+                    local_out_time = utc_out_time.astimezone(user_tz)
+                    visitor_data['out_time_local'] = local_out_time.strftime('%d/%m/%Y %I:%M:%S %p')
+                
+                visitors.append(visitor_data)
+        
+        return jsonify({
+            'success': True,
+            'visitors': visitors,
+            'timezone': user_timezone
+        })
+    
+    except Exception as e:
+        logging.error(f'Error getting visitors data: {e}')
+        return jsonify({'success': False, 'error': 'An error occurred while fetching visitors data.'}), 500
     
     finally:
         if conn:
@@ -5605,138 +5694,6 @@ def filter_by_status():
     except Exception as e:
         logging.error(f'Error filtering visitors by status: {e}')
         return jsonify({'error': str(e)}), 500
-    finally:
-        if conn:
-            conn.close()
-
-# Additional route to get visitors data with timezone support
-@app.route('/get_visitors_data')
-def get_visitors_data():
-    try:
-        user_id = request.args.get('userId') or session.get('user_id')
-        if not user_id:
-            return jsonify({'error': 'User not authenticated'}), 401
-        
-        user_timezone = request.args.get('timezone', 'UTC')
-        user_tz = pytz.timezone(user_timezone)
-        
-        conn = get_db_connection()
-        if conn is None:
-            return jsonify({'error': 'Database connection error'}), 500
-        
-        with conn.cursor() as cursor:
-            # Get user's authorized companies
-            cursor.execute("""
-                SELECT Company 
-                FROM UserCombinedRegisterCompanyAccess 
-                WHERE access_user_id = %s
-            """, (user_id,))
-            authorized_companies = [row[0] for row in cursor.fetchall()]
-            
-            # Get employee's company
-            cursor.execute("""
-                SELECT Company FROM Employee 
-                WHERE Employee_Id = %s
-            """, (user_id,))
-            result = cursor.fetchone()
-            employee_company = result[0] if result else None
-            
-            # Include both authorized companies and employee's company
-            all_accessible_companies = authorized_companies + [employee_company] if employee_company else authorized_companies
-            
-            if not all_accessible_companies:
-                return jsonify({'error': 'User has no company access permissions'}), 403
-            
-            # Get visitors data with timezone conversion
-            query = """
-            SELECT 
-                v.VisitorId,
-                v.FirstName,
-                v.LastName,
-                v.Email,
-                v.Phone,
-                v.HostName,
-                vvs.VisitDate,
-                vvs.VisitPurpose,
-                vvs.VisitStatus,
-                vvs.InTimePhoto as VisitorPhoto,
-                vvs.OutTimePhoto,
-                vvs.InTime as CheckInTime,
-                vvs.OutTime as CheckOutTime,
-                vovs.VisitorFromOrganization,
-                vovs.VisitorFromLocation,
-                vovs.VisitInOrganization as OrganizationName,
-                vovs.VisitInLocation as OrganizationLocation,
-                COALESCE(vzs.zone_status, 'green zone') as ZoneStatus,
-                va.AppointmentId,
-                va.AppointmentDate,
-                va.AppointmentLocation
-            FROM VisitorAppointment va
-            INNER JOIN Visitor v ON va.VisitorId = v.VisitorId
-            INNER JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
-            INNER JOIN VisitorOrganizationVisitStatus vovs ON va.AppointmentId = vovs.AppointmentId
-            LEFT JOIN Visitor_Zone_Status vzs ON va.AppointmentId = vzs.AppointmentId
-            WHERE vovs.VisitInOrganization = ANY(%s)
-            ORDER BY va.AppointmentDate DESC, va.CreatedAt DESC
-            """
-            
-            cursor.execute(query, (all_accessible_companies,))
-            visitors = cursor.fetchall()
-            
-            # Convert UTC times to user timezone
-            result = []
-            for visitor in visitors:
-                checkin_time_display = None
-                checkout_time_display = None
-                
-                if visitor[11]:  # CheckInTime
-                    if isinstance(visitor[11], str):
-                        utc_time = datetime.strptime(visitor[11], '%Y-%m-%d %H:%M:%S')
-                    else:
-                        utc_time = visitor[11]
-                    utc_time = pytz.UTC.localize(utc_time) if utc_time.tzinfo is None else utc_time
-                    local_time = utc_time.astimezone(user_tz)
-                    checkin_time_display = local_time.strftime('%d/%m/%Y %I:%M:%S %p')
-                
-                if visitor[12]:  # CheckOutTime
-                    if isinstance(visitor[12], str):
-                        utc_time = datetime.strptime(visitor[12], '%Y-%m-%d %H:%M:%S')
-                    else:
-                        utc_time = visitor[12]
-                    utc_time = pytz.UTC.localize(utc_time) if utc_time.tzinfo is None else utc_time
-                    local_time = utc_time.astimezone(user_tz)
-                    checkout_time_display = local_time.strftime('%d/%m/%Y %I:%M:%S %p')
-                
-                visitor_data = {
-                    'VisitorId': visitor[0],
-                    'FirstName': visitor[1],
-                    'LastName': visitor[2],
-                    'Email': visitor[3],
-                    'Phone': visitor[4],
-                    'HostName': visitor[5],
-                    'VisitDate': visitor[6].strftime('%Y-%m-%d') if visitor[6] else None,
-                    'VisitPurpose': visitor[7],
-                    'VisitorStatus': visitor[8],
-                    'VisitorPhoto': visitor[9],
-                    'OutTimePhoto': visitor[10],
-                    'CheckInTime': checkin_time_display,
-                    'CheckOutTime': checkout_time_display,
-                    'VisitorOrganization': visitor[13],
-                    'VisitorLocation': visitor[14],
-                    'OrganizationName': visitor[15],
-                    'OrganizationLocation': visitor[16],
-                    'ZoneStatus': visitor[17],
-                    'AppointmentId': visitor[18],
-                    'AppointmentDate': visitor[19].strftime('%Y-%m-%d') if visitor[19] else None,
-                    'AppointmentLocation': visitor[20]
-                }
-                result.append(visitor_data)
-            
-            return jsonify({'success': True, 'visitors': result})
-            
-    except Exception as e:
-        logging.error(f'Error loading visitors data: {e}')
-        return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
             conn.close()
