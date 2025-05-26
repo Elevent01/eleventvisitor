@@ -5362,8 +5362,10 @@ def toggle_checkin(visitor_id):
                 
             current_status, in_time, out_time, appointment_id = result
             
-            # Current time in user's timezone (keep as local time for database)
+            # Current time in user's timezone
             local_time = datetime.now(user_tz)
+            # Convert to UTC for database storage
+            utc_time = local_time.astimezone(pytz.UTC)
             
             logging.info(f'Checking in VisitorId={visitor_id} at {local_time} ({user_timezone})')
             
@@ -5376,7 +5378,7 @@ def toggle_checkin(visitor_id):
                     WHERE AppointmentId = %s
                     AND VisitorId = %s
                     RETURNING VisitStatus
-                """, (local_time, appointment_id, visitor_id))
+                """, (utc_time, appointment_id, visitor_id))
                 new_status = 'Inside'
                 
                 conn.commit()
@@ -5388,7 +5390,7 @@ def toggle_checkin(visitor_id):
                     'message': 'Visitor checked in successfully!',
                     'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                    'timestamp': local_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'timestamp': utc_time.strftime('%Y-%m-%d %H:%M:%S'),
                     'timezone': user_timezone
                 })
             else:
@@ -5434,8 +5436,10 @@ def toggle_checkout(visitor_id):
             if current_status != 'Inside':
                 return jsonify({'success': False, 'error': 'Visitor must be checked in before checking out.'}), 400
             
-            # Current time in user's timezone (keep as local time for database)
+            # Current time in user's timezone
             local_time = datetime.now(user_tz)
+            # Convert to UTC for database storage
+            utc_time = local_time.astimezone(pytz.UTC)
             
             logging.info(f'Checking out VisitorId={visitor_id} at {local_time} ({user_timezone})')
             
@@ -5449,7 +5453,7 @@ def toggle_checkout(visitor_id):
                     FROM VisitorVisitStatus 
                     WHERE VisitorId = %s
                 )
-            """, (local_time, visitor_id, visitor_id))
+            """, (utc_time, visitor_id, visitor_id))
             
             conn.commit()
             logging.info(f'Successfully checked out VisitorId={visitor_id}')
@@ -5465,279 +5469,6 @@ def toggle_checkout(visitor_id):
         logging.error(f'Error toggling check-out status for VisitorId={visitor_id}: {e}')
         return jsonify({'success': False, 'error': 'An error occurred while updating the check-out status.'}), 500
     
-    finally:
-        if conn:
-            conn.close()
-
-# Modified section for combined_register_visitor route - only the photo upload and check-in/out handling part
-def handle_checkin_checkout_in_combined_register(request, user_id, authorized_companies, employee_company):
-    """
-    Modified function to handle check-in/checkout with local timezone for combined_register_visitor
-    """
-    appointment_id = request.form.get('appointment_id')
-    if not appointment_id:
-        return jsonify({'success': False, 'error': 'Appointment ID is required'}), 400
-
-    # Get timezone from browser (you'll need to pass this from frontend)
-    user_timezone = request.form.get('timezone', 'UTC')
-    user_tz = pytz.timezone(user_timezone)
-    
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cur:
-            # First verify if the appointment exists and user has access
-            cur.execute("""
-                SELECT va.AppointmentId, COALESCE(vvs.VisitStatus, 'Pending') as VisitStatus, 
-                       vvs.InTime, vvs.OutTime, va.VisitorId
-                FROM VisitorAppointment va
-                JOIN VisitorOrganizationVisitStatus vovs ON va.AppointmentId = vovs.AppointmentId
-                LEFT JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
-                WHERE va.AppointmentId = %s
-                AND (vovs.VisitInOrganization = ANY(%s) OR %s = ANY(%s))
-            """, (appointment_id, authorized_companies, employee_company, authorized_companies))
-            
-            appointment_data = cur.fetchone()
-            if not appointment_data:
-                return jsonify({'success': False, 'error': 'Invalid Appointment ID or unauthorized access'}), 404
-
-            current_status = appointment_data[1]
-            current_in_time = appointment_data[2]
-            current_out_time = appointment_data[3]
-            visitor_id = appointment_data[4]
-
-            update_fields = []
-            update_values = []
-
-            # Handle visitor photo upload (check-in photo) - Allow upload even if already checked in
-            if 'visitor_photo' in request.files:
-                photo = request.files['visitor_photo']
-                if photo.filename != '':
-                    filename, file_extension = os.path.splitext(secure_filename(photo.filename))
-                    photo_filename = f"{uuid.uuid4().hex}_{filename}{file_extension}"
-                    photo_path = os.path.join('static/visitor_photos', photo_filename)
-                    photo.save(photo_path)
-                    update_fields.append("InTimePhoto = %s")
-                    update_values.append(photo_filename)
-
-            # Handle out time photo upload - Only restrict if already checked out
-            if 'out_time_photo' in request.files:
-                photo = request.files['out_time_photo']
-                if photo.filename != '':
-                    # Only check if visitor is already checked out (has OutTime)
-                    if current_out_time:
-                        return jsonify({'success': False, 'error': 'Cannot checkout a visitor who has already checked out'}), 400
-                    
-                    filename, file_extension = os.path.splitext(secure_filename(photo.filename))
-                    photo_filename = f"{uuid.uuid4().hex}_{filename}{file_extension}"
-                    photo_path = os.path.join('static/visitor_photos', photo_filename)
-                    photo.save(photo_path)
-                    update_fields.append("OutTimePhoto = %s")
-                    update_values.append(photo_filename)
-
-            # Handle check-in time - Modified validation with local timezone
-            check_in_time = request.form.get('check_in_time')
-            if check_in_time:
-                # Only prevent if visitor already has InTime AND it's not a photo upload scenario
-                if current_in_time and 'visitor_photo' not in request.files:
-                    return jsonify({'success': False, 'error': 'Visitor is already checked in'}), 400
-                
-                # Convert the provided time to user's timezone
-                local_check_in_time = datetime.strptime(check_in_time, '%Y-%m-%dT%H:%M')
-                # Localize to user's timezone
-                local_check_in_time = user_tz.localize(local_check_in_time)
-                
-                update_fields.append("InTime = %s")
-                update_fields.append("VisitStatus = 'Checked In'")
-                update_values.append(local_check_in_time)
-
-            # Handle check-out time - Only restrict if already has OutTime with local timezone
-            check_out_time = request.form.get('check_out_time')
-            if check_out_time:
-                # Only check if visitor already has OutTime set
-                if current_out_time:
-                    return jsonify({'success': False, 'error': 'Cannot checkout a visitor who has already checked out'}), 400
-                
-                # Check if visitor is checked in first (has InTime)
-                if not current_in_time and 'check_in_time' not in request.form:
-                    return jsonify({'success': False, 'error': 'Cannot checkout without checking in first'}), 400
-                
-                # Convert the provided time to user's timezone
-                local_check_out_time = datetime.strptime(check_out_time, '%Y-%m-%dT%H:%M')
-                # Localize to user's timezone
-                local_check_out_time = user_tz.localize(local_check_out_time)
-                
-                update_fields.append("OutTime = %s")
-                update_fields.append("VisitStatus = 'Completed'")
-                update_values.append(local_check_out_time)
-
-            if update_fields:
-                # First check if VisitorVisitStatus record exists
-                cur.execute("""
-                    SELECT COUNT(*) FROM VisitorVisitStatus 
-                    WHERE AppointmentId = %s
-                """, (appointment_id,))
-                
-                if cur.fetchone()[0] == 0:
-                    # Create VisitorVisitStatus record if it doesn't exist
-                    cur.execute("""
-                        INSERT INTO VisitorVisitStatus (
-                            VisitorId, AppointmentId, VisitStatus, CreatedAt, CreatedBy, VisitDate
-                        )
-                        SELECT va.VisitorId, va.AppointmentId, 'Pending', NOW(), %s, va.AppointmentDate
-                        FROM VisitorAppointment va
-                        WHERE va.AppointmentId = %s
-                    """, (user_id, appointment_id))
-
-                # Construct and execute the update query
-                query = f"""
-                    UPDATE VisitorVisitStatus 
-                    SET {", ".join(update_fields)}
-                    WHERE AppointmentId = %s
-                """
-                update_values.append(appointment_id)
-                cur.execute(query, tuple(update_values))
-
-            conn.commit()
-            return jsonify({'success': True, 'message': 'Updated successfully'})
-
-    except Exception as e:
-        logging.error(f'Error updating visitor status: {e}')
-        return jsonify({'success': False, 'error': str(e)}), 500
-    finally:
-        if conn:
-            conn.close()
-
-# Modified section for check_in_out route - only the photo upload and check-in/out handling part
-def handle_checkin_checkout_in_check_in_out(request, user_id):
-    """
-    Modified function to handle check-in/checkout with local timezone for check_in_out
-    """
-    appointment_id = request.form.get('appointment_id')
-    if not appointment_id:
-        return jsonify({'success': False, 'error': 'Appointment ID is required'}), 400
-
-    # Get timezone from browser (you'll need to pass this from frontend)
-    user_timezone = request.form.get('timezone', 'UTC')
-    user_tz = pytz.timezone(user_timezone)
-
-    conn = get_db_connection()
-    try:
-        with conn.cursor() as cur:
-            # First verify if the appointment exists and get current status
-            cur.execute("""
-                SELECT va.AppointmentId, COALESCE(vvs.VisitStatus, 'Pending') as VisitStatus, 
-                       vvs.InTime, vvs.OutTime
-                FROM VisitorAppointment va
-                LEFT JOIN VisitorVisitStatus vvs ON va.AppointmentId = vvs.AppointmentId
-                WHERE va.AppointmentId = %s
-            """, (appointment_id,))
-            
-            appointment_data = cur.fetchone()
-            if not appointment_data:
-                return jsonify({'success': False, 'error': 'Invalid Appointment ID'}), 404
-
-            current_status = appointment_data[1]
-            current_in_time = appointment_data[2]
-            current_out_time = appointment_data[3]
-
-            update_fields = []
-            update_values = []
-
-            # Handle visitor photo upload (check-in photo) - Allow upload even if already checked in
-            if 'visitor_photo' in request.files:
-                photo = request.files['visitor_photo']
-                if photo.filename != '':
-                    filename, file_extension = os.path.splitext(secure_filename(photo.filename))
-                    photo_filename = f"{uuid.uuid4().hex}_{filename}{file_extension}"
-                    photo_path = os.path.join('static/visitor_photos', photo_filename)
-                    photo.save(photo_path)
-                    update_fields.append("InTimePhoto = %s")
-                    update_values.append(photo_filename)
-
-            # Handle out time photo upload - Only restrict if already checked out
-            if 'out_time_photo' in request.files:
-                photo = request.files['out_time_photo']
-                if photo.filename != '':
-                    # Only check if visitor is already checked out (has OutTime)
-                    if current_out_time:
-                        return jsonify({'success': False, 'error': 'Cannot checkout a visitor who has already checked out'}), 400
-                    
-                    filename, file_extension = os.path.splitext(secure_filename(photo.filename))
-                    photo_filename = f"{uuid.uuid4().hex}_{filename}{file_extension}"
-                    photo_path = os.path.join('static/visitor_photos', photo_filename)
-                    photo.save(photo_path)
-                    update_fields.append("OutTimePhoto = %s")
-                    update_values.append(photo_filename)
-
-            # Handle check-in time - Only restrict if already has InTime with local timezone
-            check_in_time = request.form.get('check_in_time')
-            if check_in_time:
-                # Only check if visitor already has InTime set
-                if current_in_time:
-                    return jsonify({'success': False, 'error': 'Visitor is already checked in'}), 400
-                
-                # Convert the provided time to user's timezone
-                local_check_in_time = datetime.strptime(check_in_time, '%Y-%m-%dT%H:%M')
-                # Localize to user's timezone
-                local_check_in_time = user_tz.localize(local_check_in_time)
-                
-                update_fields.append("InTime = %s")
-                update_fields.append("VisitStatus = 'Checked In'")
-                update_values.append(local_check_in_time)
-
-            # Handle check-out time - Only restrict if already has OutTime with local timezone
-            check_out_time = request.form.get('check_out_time')
-            if check_out_time:
-                # Only check if visitor already has OutTime set
-                if current_out_time:
-                    return jsonify({'success': False, 'error': 'Cannot checkout a visitor who has already checked out'}), 400
-                
-                # Check if visitor is checked in first (has InTime)
-                if not current_in_time and 'check_in_time' not in request.form:
-                    return jsonify({'success': False, 'error': 'Cannot checkout without checking in first'}), 400
-                
-                # Convert the provided time to user's timezone
-                local_check_out_time = datetime.strptime(check_out_time, '%Y-%m-%dT%H:%M')
-                # Localize to user's timezone
-                local_check_out_time = user_tz.localize(local_check_out_time)
-                
-                update_fields.append("OutTime = %s")
-                update_fields.append("VisitStatus = 'Completed'")
-                update_values.append(local_check_out_time)
-
-            if update_fields:
-                # First check if VisitorVisitStatus record exists
-                cur.execute("""
-                    SELECT COUNT(*) FROM VisitorVisitStatus 
-                    WHERE AppointmentId = %s
-                """, (appointment_id,))
-                
-                if cur.fetchone()[0] == 0:
-                    # Create VisitorVisitStatus record if it doesn't exist
-                    cur.execute("""
-                        INSERT INTO VisitorVisitStatus (
-                            VisitorId, AppointmentId, VisitStatus, CreatedAt, CreatedBy, VisitDate
-                        )
-                        SELECT va.VisitorId, va.AppointmentId, 'Pending', NOW(), %s, va.AppointmentDate
-                        FROM VisitorAppointment va
-                        WHERE va.AppointmentId = %s
-                    """, (user_id, appointment_id))
-
-                # Construct and execute the update query
-                query = f"""
-                    UPDATE VisitorVisitStatus 
-                    SET {", ".join(update_fields)}
-                    WHERE AppointmentId = %s
-                """
-                update_values.append(appointment_id)
-                cur.execute(query, tuple(update_values))
-
-            conn.commit()
-            return jsonify({'success': True, 'message': 'Updated successfully'})
-
-    except Exception as e:
-        logging.error(f'Error updating visitor status: {e}')
-        return jsonify({'success': False, 'error': str(e)}), 500
     finally:
         if conn:
             conn.close()
