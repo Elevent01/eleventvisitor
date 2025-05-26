@@ -5212,15 +5212,16 @@ def upload_visitor_photo():
             
             # Check if this is a new photo upload and visitor hasn't checked in yet
             if not current_in_time and current_status not in ['Inside', 'Completed']:
-                # Auto check-in with local time (not UTC)
+                # Auto check-in with timezone support
                 local_time = datetime.now(user_tz)
+                utc_time = local_time.astimezone(pytz.UTC)
                 
-                # Update with photo and auto check-in - storing local time instead of UTC
+                # Update with photo and auto check-in
                 cur.execute("""
                     UPDATE VisitorVisitStatus 
                     SET InTimePhoto = %s, VisitStatus = 'Inside', InTime = %s
                     WHERE AppointmentId = %s
-                """, (photo_filename, local_time, appointment_id))
+                """, (photo_filename, utc_time, appointment_id))
                 auto_checkin = True
             else:
                 # Just update the photo
@@ -5264,145 +5265,6 @@ def upload_visitor_photo():
         if conn:
             conn.close()
 
-
-@app.route('/toggle_checkin/<int:visitor_id>', methods=['POST'])
-def toggle_checkin(visitor_id):
-    try:
-        # Get user timezone from request
-        user_timezone = request.json.get('timezone', 'UTC')
-        user_tz = pytz.timezone(user_timezone)
-        
-        conn = get_db_connection()
-        if conn is None:
-            return jsonify({'success': False, 'error': 'Database connection error.'}), 500
-            
-        with conn.cursor() as cur:
-            # Get the current date in user's timezone
-            current_date = datetime.now(user_tz).date()
-            
-            # Get current status for today's appointment only
-            cur.execute("""
-                SELECT vvs.VisitStatus, vvs.InTime, vvs.OutTime, vvs.AppointmentId
-                FROM VisitorVisitStatus vvs
-                JOIN VisitorAppointment va ON vvs.AppointmentId = va.AppointmentId
-                WHERE vvs.VisitorId = %s
-                AND DATE(va.AppointmentDate) = %s
-                ORDER BY vvs.CreatedAt DESC 
-                LIMIT 1
-            """, (visitor_id, current_date))
-            result = cur.fetchone()
-            
-            if not result:
-                return jsonify({'success': False, 'error': 'No valid appointment found for today'}), 404
-                
-            current_status, in_time, out_time, appointment_id = result
-            
-            # Current time in user's timezone (storing local time instead of UTC)
-            local_time = datetime.now(user_tz)
-            
-            logging.info(f'Checking in VisitorId={visitor_id} at {local_time} ({user_timezone})')
-            
-            # Only update if the status isn't already 'Inside'
-            if current_status != 'Inside' and not in_time:
-                cur.execute("""
-                    UPDATE VisitorVisitStatus 
-                    SET VisitStatus = 'Inside',
-                        InTime = %s
-                    WHERE AppointmentId = %s
-                    AND VisitorId = %s
-                    RETURNING VisitStatus
-                """, (local_time, appointment_id, visitor_id))
-                new_status = 'Inside'
-                
-                conn.commit()
-                logging.info(f'Successfully checked in VisitorId={visitor_id}')
-                
-                return jsonify({
-                    'success': True, 
-                    'new_status': new_status,
-                    'message': 'Visitor checked in successfully!',
-                    'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
-                    'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                    'timestamp': local_time.strftime('%Y-%m-%d %H:%M:%S'),
-                    'timezone': user_timezone
-                })
-            else:
-                return jsonify({'success': False, 'error': 'Visitor is already checked in'}), 400
-                
-    except Exception as e:
-        logging.error(f'Error updating check-in for Visitor {visitor_id}: {e}')
-        return jsonify({'success': False, 'error': 'An error occurred while updating the check-in status.'}), 500
-    finally:
-        if conn:
-            conn.close()
-
-@app.route('/toggle_checkout/<int:visitor_id>', methods=['POST'])
-def toggle_checkout(visitor_id):
-    try:
-        # Get user timezone from request
-        user_timezone = request.json.get('timezone', 'UTC')
-        user_tz = pytz.timezone(user_timezone)
-        
-        conn = get_db_connection()
-        if conn is None:
-            return jsonify({'success': False, 'error': 'Database connection error.'}), 500
-        
-        with conn.cursor() as cur:
-            # Check if the visitor's status allows for checkout
-            cur.execute("""
-                SELECT VisitStatus 
-                FROM VisitorVisitStatus 
-                WHERE VisitorId = %s 
-                ORDER BY CreatedAt DESC 
-                LIMIT 1
-            """, (visitor_id,))
-            result = cur.fetchone()
-            if not result:
-                return jsonify({'success': False, 'error': 'Visitor not found.'}), 404
-            
-            current_status = result[0]
-            logging.info(f'Current status for VisitorId={visitor_id}: {current_status}')
-            
-            if current_status in ['No Visit', 'Is Gone']:
-                return jsonify({'success': False, 'error': 'Cannot check out a visitor with No Visit or who has already checked out.'}), 400
-            
-            if current_status != 'Inside':
-                return jsonify({'success': False, 'error': 'Visitor must be checked in before checking out.'}), 400
-            
-            # Current time in user's timezone (storing local time instead of UTC)
-            local_time = datetime.now(user_tz)
-            
-            logging.info(f'Checking out VisitorId={visitor_id} at {local_time} ({user_timezone})')
-            
-            # Update status to 'Is Gone' in VisitorVisitStatus
-            cur.execute("""
-                UPDATE VisitorVisitStatus 
-                SET OutTime = %s, VisitStatus = 'Is Gone'
-                WHERE VisitorId = %s 
-                AND CreatedAt = (
-                    SELECT MAX(CreatedAt) 
-                    FROM VisitorVisitStatus 
-                    WHERE VisitorId = %s
-                )
-            """, (local_time, visitor_id, visitor_id))
-            
-            conn.commit()
-            logging.info(f'Successfully checked out VisitorId={visitor_id}')
-            return jsonify({
-                'success': True, 
-                'message': 'Visitor checked out successfully!',
-                'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
-                'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                'timezone': user_timezone
-            })
-    
-    except Exception as e:
-        logging.error(f'Error toggling check-out status for VisitorId={visitor_id}: {e}')
-        return jsonify({'success': False, 'error': 'An error occurred while updating the check-out status.'}), 500
-    
-    finally:
-        if conn:
-            conn.close()
 
 @app.route('/upload_out_time_photo', methods=['POST'])
 def upload_out_time_photo():
@@ -5467,6 +5329,149 @@ def upload_out_time_photo():
     
     finally:
         conn.close()
+        
+@app.route('/toggle_checkin/<int:visitor_id>', methods=['POST'])
+def toggle_checkin(visitor_id):
+    try:
+        # Get user timezone from request
+        user_timezone = request.json.get('timezone', 'UTC')
+        user_tz = pytz.timezone(user_timezone)
+        
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({'success': False, 'error': 'Database connection error.'}), 500
+            
+        with conn.cursor() as cur:
+            # Get the current date in user's timezone
+            current_date = datetime.now(user_tz).date()
+            
+            # Get current status for today's appointment only
+            cur.execute("""
+                SELECT vvs.VisitStatus, vvs.InTime, vvs.OutTime, vvs.AppointmentId
+                FROM VisitorVisitStatus vvs
+                JOIN VisitorAppointment va ON vvs.AppointmentId = va.AppointmentId
+                WHERE vvs.VisitorId = %s
+                AND DATE(va.AppointmentDate) = %s
+                ORDER BY vvs.CreatedAt DESC 
+                LIMIT 1
+            """, (visitor_id, current_date))
+            result = cur.fetchone()
+            
+            if not result:
+                return jsonify({'success': False, 'error': 'No valid appointment found for today'}), 404
+                
+            current_status, in_time, out_time, appointment_id = result
+            
+            # Current time in user's timezone
+            local_time = datetime.now(user_tz)
+            # Convert to UTC for database storage
+            utc_time = local_time.astimezone(pytz.UTC)
+            
+            logging.info(f'Checking in VisitorId={visitor_id} at {local_time} ({user_timezone})')
+            
+            # Only update if the status isn't already 'Inside'
+            if current_status != 'Inside' and not in_time:
+                cur.execute("""
+                    UPDATE VisitorVisitStatus 
+                    SET VisitStatus = 'Inside',
+                        InTime = %s
+                    WHERE AppointmentId = %s
+                    AND VisitorId = %s
+                    RETURNING VisitStatus
+                """, (utc_time, appointment_id, visitor_id))
+                new_status = 'Inside'
+                
+                conn.commit()
+                logging.info(f'Successfully checked in VisitorId={visitor_id}')
+                
+                return jsonify({
+                    'success': True, 
+                    'new_status': new_status,
+                    'message': 'Visitor checked in successfully!',
+                    'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
+                    'timestamp': utc_time.strftime('%Y-%m-%d %H:%M:%S'),
+                    'timezone': user_timezone
+                })
+            else:
+                return jsonify({'success': False, 'error': 'Visitor is already checked in'}), 400
+                
+    except Exception as e:
+        logging.error(f'Error updating check-in for Visitor {visitor_id}: {e}')
+        return jsonify({'success': False, 'error': 'An error occurred while updating the check-in status.'}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/toggle_checkout/<int:visitor_id>', methods=['POST'])
+def toggle_checkout(visitor_id):
+    try:
+        # Get user timezone from request
+        user_timezone = request.json.get('timezone', 'UTC')
+        user_tz = pytz.timezone(user_timezone)
+        
+        conn = get_db_connection()
+        if conn is None:
+            return jsonify({'success': False, 'error': 'Database connection error.'}), 500
+        
+        with conn.cursor() as cur:
+            # Check if the visitor's status allows for checkout
+            cur.execute("""
+                SELECT VisitStatus 
+                FROM VisitorVisitStatus 
+                WHERE VisitorId = %s 
+                ORDER BY CreatedAt DESC 
+                LIMIT 1
+            """, (visitor_id,))
+            result = cur.fetchone()
+            if not result:
+                return jsonify({'success': False, 'error': 'Visitor not found.'}), 404
+            
+            current_status = result[0]
+            logging.info(f'Current status for VisitorId={visitor_id}: {current_status}')
+            
+            if current_status in ['No Visit', 'Is Gone']:
+                return jsonify({'success': False, 'error': 'Cannot check out a visitor with No Visit or who has already checked out.'}), 400
+            
+            if current_status != 'Inside':
+                return jsonify({'success': False, 'error': 'Visitor must be checked in before checking out.'}), 400
+            
+            # Current time in user's timezone
+            local_time = datetime.now(user_tz)
+            # Convert to UTC for database storage
+            utc_time = local_time.astimezone(pytz.UTC)
+            
+            logging.info(f'Checking out VisitorId={visitor_id} at {local_time} ({user_timezone})')
+            
+            # Update status to 'Is Gone' in VisitorVisitStatus
+            cur.execute("""
+                UPDATE VisitorVisitStatus 
+                SET OutTime = %s, VisitStatus = 'Is Gone'
+                WHERE VisitorId = %s 
+                AND CreatedAt = (
+                    SELECT MAX(CreatedAt) 
+                    FROM VisitorVisitStatus 
+                    WHERE VisitorId = %s
+                )
+            """, (utc_time, visitor_id, visitor_id))
+            
+            conn.commit()
+            logging.info(f'Successfully checked out VisitorId={visitor_id}')
+            return jsonify({
+                'success': True, 
+                'message': 'Visitor checked out successfully!',
+                'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
+                'timezone': user_timezone
+            })
+    
+    except Exception as e:
+        logging.error(f'Error toggling check-out status for VisitorId={visitor_id}: {e}')
+        return jsonify({'success': False, 'error': 'An error occurred while updating the check-out status.'}), 500
+    
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/filter_by_status', methods=['GET'])
 def filter_by_status():
