@@ -1102,11 +1102,81 @@ def get_roles():
         if conn:
             conn.close()
 
+def compress_image(image_file, max_size_mb=3, max_width=1024, max_height=1024, quality=85):
+    """
+    Image ko compress aur resize karta hai
+    max_size_mb: Maximum file size in MB
+    max_width, max_height: Maximum dimensions
+    quality: JPEG quality (1-100)
+    """
+    try:
+        # Image open karo
+        img = Image.open(image_file)
+        
+        # RGBA images ko RGB mein convert karo (transparency remove)
+        if img.mode in ('RGBA', 'LA', 'P'):
+            # White background ke saath merge karo
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            if img.mode == 'P':
+                img = img.convert('RGBA')
+            background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+            img = background
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Image ko resize karo if needed
+        img.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
+        
+        # Compress karo until size limit meet ho jaye
+        max_size_bytes = max_size_mb * 1024 * 1024
+        current_quality = quality
+        
+        while current_quality > 10:  # Minimum quality threshold
+            # BytesIO buffer mein save karo
+            buffer = io.BytesIO()
+            img.save(buffer, format='JPEG', quality=current_quality, optimize=True)
+            
+            # Size check karo
+            if buffer.tell() <= max_size_bytes:
+                buffer.seek(0)
+                return buffer.getvalue()
+            
+            # Quality reduce karo aur retry
+            current_quality -= 10
+            buffer.close()
+        
+        # Agar still size zyada hai to dimensions aur reduce karo
+        scale_factor = 0.8
+        while img.width > 200 and img.height > 200:
+            new_width = int(img.width * scale_factor)
+            new_height = int(img.height * scale_factor)
+            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            buffer = io.BytesIO()
+            img.save(buffer, format='JPEG', quality=50, optimize=True)
+            
+            if buffer.tell() <= max_size_bytes:
+                buffer.seek(0)
+                return buffer.getvalue()
+            
+            buffer.close()
+        
+        # Final attempt with lowest settings
+        buffer = io.BytesIO()
+        img.save(buffer, format='JPEG', quality=30, optimize=True)
+        buffer.seek(0)
+        return buffer.getvalue()
+        
+    except Exception as e:
+        logging.error(f'Error compressing image: {e}')
+        return None
+
+
 @app.route('/upload_photo', methods=['POST'])
 def upload_photo():
     if 'user_id' not in session:
         flash('You need to be logged in to upload a photo.', 'danger')
-        return redirect(url_for('dashboard'))  # Redirect to login or appropriate page
+        return redirect(url_for('dashboard'))
 
     if 'photo' not in request.files:
         flash('No photo uploaded.', 'danger')
@@ -1117,40 +1187,84 @@ def upload_photo():
         flash('No selected photo.', 'danger')
         return redirect(url_for('dashboard'))
 
+    # Check file type
+    allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'}
+    file_extension = photo.filename.rsplit('.', 1)[1].lower() if '.' in photo.filename else ''
+    
+    if file_extension not in allowed_extensions:
+        flash('Invalid file type. Please upload an image file.', 'danger')
+        return redirect(url_for('dashboard'))
+
     user_id = session['user_id']
     conn = get_db_connection()
-    
+        
     if conn is None:
         flash('Database connection error. Please try again later.', 'danger')
         return redirect(url_for('dashboard'))
 
     try:
+        # Image ko compress karo
+        compressed_photo_data = compress_image(photo, max_size_mb=3, max_width=1024, max_height=1024)
+        
+        if compressed_photo_data is None:
+            flash('Error processing image. Please try a different image.', 'danger')
+            return redirect(url_for('dashboard'))
+        
+        # Check final size
+        final_size_mb = len(compressed_photo_data) / (1024 * 1024)
+        logging.info(f'Compressed image size: {final_size_mb:.2f} MB')
+        
         with conn.cursor() as cur:
-            # Fetch the existing photo filename
+            # Check if user exists
             cur.execute("SELECT Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
-            existing_photo = cur.fetchone()
-            existing_photo_filename = existing_photo[0] if existing_photo else None
-
-            # If an existing photo is found, delete it from the filesystem
-            if existing_photo_filename:
-                existing_photo_path = os.path.join('static/profile_photos', existing_photo_filename)
-                if os.path.exists(existing_photo_path):
-                    os.remove(existing_photo_path)
-
-            # Generate a new filename for the new photo
-            photo_filename = f"{uuid.uuid4().hex}_{photo.filename}"
-            photo_path = os.path.join('static/profile_photos', photo_filename)
-            photo.save(photo_path)
-
-            # Update the database with the new photo filename
-            cur.execute("UPDATE Employee SET Photo = %s WHERE Employee_Id = %s", (photo_filename, user_id))
+            existing_record = cur.fetchone()
+            
+            if existing_record:
+                # Update the photo (replace existing)
+                cur.execute("UPDATE Employee SET Photo = %s WHERE Employee_Id = %s", (compressed_photo_data, user_id))
+                flash(f'Photo updated successfully! (Size: {final_size_mb:.2f} MB)', 'success')
+            else:
+                flash('User not found in database.', 'danger')
+                return redirect(url_for('dashboard'))
+            
             conn.commit()
-        flash('Photo uploaded successfully!', 'success')
+            
     except Exception as e:
         logging.error(f'Error uploading photo: {e}')
         flash('An error occurred while uploading the photo. Please try again.', 'danger')
+        conn.rollback()
     finally:
         conn.close()
+
+    return redirect(url_for('dashboard'))
+
+
+# Photo retrieve karne ke liye ye route add kariye
+@app.route('/get_photo/<user_id>')
+def get_photo(user_id):
+    conn = get_db_connection()
+    
+    if conn is None:
+        return "Database connection error", 500
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
+            result = cur.fetchone()
+            
+            if result and result[0]:
+                photo_data = result[0]
+                # Return photo as response with appropriate content type
+                return Response(photo_data, mimetype='image/jpeg')
+            else:
+                return "No photo found", 404
+                
+    except Exception as e:
+        logging.error(f'Error retrieving photo: {e}')
+        return "Error retrieving photo", 500
+    finally:
+        conn.close()
+
 
     return redirect(url_for('dashboard'))
 # Initialize the serializer for token generation
