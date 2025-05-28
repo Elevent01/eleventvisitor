@@ -6,11 +6,15 @@ import uuid
 import traceback
 import json
 import base64
-import time  
+import time 
+import cloudinary
+import cloudinary.uploader 
 import pytz
+from io import BytesIO
+from PIL import Image
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import URLSafeTimedSerializer
-from flask import Flask, render_template, request, redirect, url_for, flash, session , jsonify 
+from flask import Flask, render_template, request, redirect, url_for, flash, session , jsonify , Response
 import psycopg2
 import bcrypt
 from flask_wtf import CSRFProtect
@@ -5142,6 +5146,13 @@ def edit_visitor(visitor_id=None):
                          can_quick_register=can_quick_register,
                          can_access_role_access=can_access_role_access)
 
+# Configure Cloudinary (add this at the top of your app)
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET')
+)
+
 @app.route('/upload_visitor_photo', methods=['POST'])
 def upload_visitor_photo():
     try:
@@ -5184,53 +5195,65 @@ def upload_visitor_photo():
             """, (appointment_id,))
             status_result = cur.fetchone()
             
-            existing_photo_filename = None
+            existing_photo_url = None
             current_in_time = None
             current_status = 'Pending'
             visitor_id = None
             
             if status_result:
-                existing_photo_filename = status_result[0]
+                existing_photo_url = status_result[0]
                 current_in_time = status_result[1]
                 current_status = status_result[2] if status_result[2] else 'Pending'
                 visitor_id = status_result[3]
 
-            # Delete existing photo from the filesystem if it exists
-            if existing_photo_filename:
-                existing_photo_path = os.path.join('static/visitor_photos', existing_photo_filename)
-                if os.path.exists(existing_photo_path):
-                    os.remove(existing_photo_path)
+            # Delete existing photo from Cloudinary if it exists
+            if existing_photo_url and 'cloudinary' in existing_photo_url:
+                try:
+                    public_id = existing_photo_url.split('/')[-1].split('.')[0]
+                    cloudinary.uploader.destroy(f"visitor_photos/{public_id}")
+                    logging.info(f'Deleted existing visitor photo: {public_id}')
+                except Exception as e:
+                    logging.error(f'Failed to delete existing visitor photo: {e}')
 
-            # Generate a new filename for the uploaded photo
-            filename, file_extension = os.path.splitext(secure_filename(photo.filename))
-            photo_filename = f"{uuid.uuid4().hex}_{filename}{file_extension}"
-            photo_path = os.path.join('static/visitor_photos', photo_filename)
-            photo.save(photo_path)
+            # Upload new photo to Cloudinary
+            try:
+                upload_result = cloudinary.uploader.upload(
+                    photo,
+                    folder="visitor_photos",
+                    public_id=f"{uuid.uuid4().hex}_{secure_filename(photo.filename).split('.')[0]}",
+                    overwrite=True
+                )
+                photo_url = upload_result['secure_url']
+                logging.info(f'Successfully uploaded visitor photo to Cloudinary: {photo_url}')
+            except Exception as e:
+                logging.error(f'Cloudinary upload error for visitor photo: {e}')
+                return jsonify({'success': False, 'error': 'Failed to upload photo. Please try again.'}), 500
 
             auto_checkin = False
             local_time = None
             
             # Check if this is a new photo upload and visitor hasn't checked in yet
             if not current_in_time and current_status not in ['Inside', 'Completed']:
-                # Get current time in user's LOCAL timezone (not UTC)
+                # Auto check-in with timezone support
                 local_time = datetime.now(user_tz)
+                utc_time = local_time.astimezone(pytz.UTC)
                 
-                logging.info(f'Auto check-in: Local time: {local_time} ({user_timezone}) - storing as local time')
-                
-                # Store LOCAL time directly in database (not UTC)
+                # Update with photo URL and auto check-in
                 cur.execute("""
                     UPDATE VisitorVisitStatus 
                     SET InTimePhoto = %s, VisitStatus = 'Inside', InTime = %s
                     WHERE AppointmentId = %s
-                """, (photo_filename, local_time.replace(tzinfo=None), appointment_id))
+                """, (photo_url, utc_time, appointment_id))
                 auto_checkin = True
+                logging.info(f'Auto check-in completed for appointment: {appointment_id}')
             else:
-                # Just update the photo
+                # Just update the photo URL
                 cur.execute("""
                     UPDATE VisitorVisitStatus 
                     SET InTimePhoto = %s
                     WHERE AppointmentId = %s
-                """, (photo_filename, appointment_id))
+                """, (photo_url, appointment_id))
+                logging.info(f'Updated visitor photo for appointment: {appointment_id}')
 
             # Add to update history
             cur.execute("""
@@ -5247,21 +5270,22 @@ def upload_visitor_photo():
 
             response_data = {
                 'success': True,
-                'message': 'Photo uploaded successfully!'
+                'message': 'Photo uploaded successfully!',
+                'photo_url': photo_url,
+                'folder': 'visitor_photos'
             }
 
             if auto_checkin and local_time:
                 response_data.update({
                     'auto_checkin': True,
                     'local_time': local_time.strftime('%Y-%m-%d %H:%M:%S'),
-                    'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p'),
-                    'timezone': user_timezone
+                    'display_time': local_time.strftime('%d/%m/%Y %I:%M:%S %p')
                 })
 
             return jsonify(response_data)
 
     except Exception as e:
-        logging.error(f'Error uploading photo: {e}')
+        logging.error(f'Error uploading visitor photo: {e}')
         return jsonify({'success': False, 'error': 'An error occurred while uploading the photo. Please try again.'}), 500
     finally:
         if conn:
@@ -5279,8 +5303,6 @@ def upload_out_time_photo():
         return jsonify({'success': False, 'error': 'No selected photo.'}), 400
     
     visitor_id = request.form.get('visitor_id')
-    user_timezone = request.form.get('timezone', 'UTC')
-    
     conn = get_db_connection()
     
     if conn is None:
@@ -5288,7 +5310,7 @@ def upload_out_time_photo():
     
     try:
         with conn.cursor() as cur:
-            # Fetch existing out time photo filename from VisitorVisitStatus
+            # Fetch existing out time photo URL from VisitorVisitStatus
             if visitor_id:
                 cur.execute("""
                     SELECT OutTimePhoto 
@@ -5298,21 +5320,30 @@ def upload_out_time_photo():
                     LIMIT 1
                 """, (visitor_id,))
                 existing_photo = cur.fetchone()
-                existing_photo_filename = existing_photo[0] if existing_photo else None
+                existing_photo_url = existing_photo[0] if existing_photo else None
                 
-                # Delete existing photo from the filesystem if it exists
-                if existing_photo_filename:
-                    existing_photo_path = os.path.join('static/out_time_photos', existing_photo_filename)
-                    if os.path.exists(existing_photo_path):
-                        os.remove(existing_photo_path)
+                # Delete existing photo from Cloudinary if it exists
+                if existing_photo_url and 'cloudinary' in existing_photo_url:
+                    try:
+                        public_id = existing_photo_url.split('/')[-1].split('.')[0]
+                        cloudinary.uploader.destroy(f"out_time_photos/{public_id}")
+                    except:
+                        pass  # If deletion fails, continue
                 
-                # Generate a new filename for the uploaded photo
-                filename, file_extension = os.path.splitext(secure_filename(photo.filename))
-                photo_filename = f"{uuid.uuid4().hex}_{filename}{file_extension}"
-                photo_path = os.path.join('static/out_time_photos', photo_filename)
-                photo.save(photo_path)
+                # Upload new photo to Cloudinary
+                try:
+                    upload_result = cloudinary.uploader.upload(
+                        photo,
+                        folder="out_time_photos",
+                        public_id=f"{uuid.uuid4().hex}_{secure_filename(photo.filename).split('.')[0]}",
+                        overwrite=True
+                    )
+                    photo_url = upload_result['secure_url']
+                except Exception as e:
+                    logging.error(f'Cloudinary upload error: {e}')
+                    return jsonify({'success': False, 'error': 'Failed to upload photo. Please try again.'}), 500
                 
-                # Update the VisitorVisitStatus table with the new photo filename
+                # Update the VisitorVisitStatus table with the new photo URL
                 cur.execute("""
                     UPDATE VisitorVisitStatus 
                     SET OutTimePhoto = %s 
@@ -5322,14 +5353,10 @@ def upload_out_time_photo():
                         FROM VisitorVisitStatus 
                         WHERE VisitorId = %s
                     )
-                """, (photo_filename, visitor_id, visitor_id))
+                """, (photo_url, visitor_id, visitor_id))
                 conn.commit()
         
-        return jsonify({
-            'success': True, 
-            'message': 'Out time photo uploaded successfully!',
-            'timezone': user_timezone
-        })
+        return jsonify({'success': True, 'message': 'Out time photo uploaded successfully!', 'photo_url': photo_url})
     
     except Exception as e:
         logging.error(f'Error uploading out time photo: {e}')
