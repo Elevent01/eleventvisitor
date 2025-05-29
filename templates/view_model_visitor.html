@@ -512,7 +512,7 @@ body {
                                 <h4>In-Time Photo</h4>
                                 <div class="photo-container">
                                     {% if visitor['VisitorPhoto'] %}
-                                        <img src="{{ url_for('static', filename='visitor_photos/' + visitor.VisitorPhoto) }}" 
+                                        <img src="{{ url_for('get_visitor_photo_by_appointment', appointment_id=visitor.AppointmentId) }}" 
                                              alt="Visitor Photo" class="photo-preview" 
                                              id="preview-{{ visitor.AppointmentId }}">
                                     {% else %}
@@ -527,7 +527,7 @@ body {
                                 <h4>Out-Time Photo</h4>
                                 <div class="photo-container">
                                     {% if visitor['OutTimePhoto'] %}
-                                        <img src="{{ url_for('static', filename='out_time_photos/' + visitor.OutTimePhoto) }}" 
+                                        <img src="{{ url_for('get_out_time_photo', visitor_id=visitor.VisitorId) }}" 
                                              alt="Out Time Photo" class="photo-preview" 
                                              id="out-time-preview-{{ visitor.AppointmentId }}">
                                     {% else %}
@@ -538,42 +538,41 @@ body {
                                     {% endif %}
                                 </div>
                             </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                            
-                                            <div class="card mb-4">
-                                                <div class="card-header">
-                                                    <h3 class="card-title"><i class="fas fa-clock mr-2"></i> Time and Access Details</h3>
-                                                </div>
-                                                <div class="card-body">
-                                                    <table class="table">
-                                                        <tr>
-                                                            <th>Check-In Time</th>
-                                                            <td>{{ visitor['CheckInTime'] or 'N/A' }}</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <th>Check-Out Time</th>
-                                                            <td>{{ visitor['CheckOutTime'] or 'N/A' }}</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <th>Zone Status</th>
-                                                            <td>{{ visitor['ZoneStatus'] }}</td>
-                                                        </tr>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            
-                                <div class="profile-footer">
-                                    
-                                    <a href="{{ url_for('edit_visitor', visitor_id=visitor.VisitorId) }}" class="btn btn-warning">
-                                        <i class="fas fa-edit mr-2"></i>Update
-                                    </a>
-                                </div>
-                            </div>
-                            {% endblock %}
+                        </div>
+                    </div>
+                </div>
+            
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title"><i class="fas fa-clock mr-2"></i> Time and Access Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <table class="table">
+                            <tr>
+                                <th>Check-In Time</th>
+                                <td>{{ visitor['CheckInTime'] or 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Check-Out Time</th>
+                                <td>{{ visitor['CheckOutTime'] or 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <th>Zone Status</th>
+                                <td>{{ visitor['ZoneStatus'] }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="profile-footer">
+        <a href="{{ url_for('edit_visitor', visitor_id=visitor.VisitorId) }}" class="btn btn-warning">
+            <i class="fas fa-edit mr-2"></i>Update
+        </a>
+    </div>
+</div>
+{% endblock %}
                             </body>
                             </html>
