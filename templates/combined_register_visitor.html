@@ -497,8 +497,8 @@
                                    style="display:none;" 
                                    disabled>
                             {% if visitor.VisitorPhoto %}
-                                <img src="{{ url_for('static', filename='visitor_photos/' + visitor.VisitorPhoto) }}" 
-                                     alt="Visitor Photo" class="photo-preview" id="preview-{{ visitor.VisitorId }}">
+                                <img src="{{ url_for('get_visitor_photo_by_id', visitor_id=visitor.VisitorId) }}" 
+                                     alt="Visitor Photo" class="photo-preview" id="preview-{{ visitor.VisitorId }}-{{ visitor.AppointmentId }}">
                             {% else %}
                                 <div class="no-photo">No Photo</div>
                             {% endif %}
@@ -1816,11 +1816,11 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
     if (!file) return;
 
     const formData = new FormData();
-    formData.append('visitor_photo', file);
+    formData.append('photo', file);  // Changed from 'visitor_photo' to 'photo' to match backend
     formData.append('appointment_id', appointmentId);
     formData.append('timezone', getUserTimezone());
         
-    fetch('/combined_register_visitor', {
+    fetch('/upload_visitor_photo', {  // Changed endpoint to match backend
         method: 'POST',
         body: formData
     })
@@ -1855,13 +1855,9 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
                     }
                 }
                 
-                // Set photo source
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    img.src = e.target.result;
-                    img.style.display = 'block';
-                };
-                reader.readAsDataURL(file);
+                // Set photo source using the correct endpoint
+                img.src = `/get_visitor_photo_by_appointment/${appointmentId}`;
+                img.style.display = 'block';
             }
 
             // Hide the upload photo button in Actions column after successful upload
@@ -1874,7 +1870,10 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
             const checkbox = currentRow.querySelector(`#checkin-${visitorId}`);
             if (checkbox) {
                 checkbox.setAttribute('data-appointment-id', appointmentId);
-                checkbox.checked = true;
+                if (data.auto_checkin) {
+                    checkbox.checked = true;
+                    checkbox.disabled = true;
+                }
             }
 
             // Enable controls after successful photo upload - find controls in current row
@@ -1893,27 +1892,40 @@ function uploadPhoto(event, visitorId, appointmentId, zoneStatus) {
             const checkinGroup = currentRow.querySelector(`#checkin-group-${visitorId}`);
             
             if (photoUploadGroup) photoUploadGroup.style.display = 'none';
-            if (checkinGroup) checkinGroup.style.display = 'block';
+            if (checkinGroup && !data.auto_checkin) checkinGroup.style.display = 'block';
 
-            // Automatically trigger check-in
-            if (checkbox) {
-                const changeEvent = new Event('change', { bubbles: true });
-                checkbox.dispatchEvent(changeEvent);
-            }
-
-            // Show the out-time photo group after successful check-in only if out time photo is allowed
-            const outTimePhotoGroup = currentRow.querySelector(`#out-time-photo-group-${visitorId}`);
-            const allowCheckoutWithoutPhoto = localStorage.getItem('allowCheckoutWithoutPhoto') === 'true';
-            
-            // Only show out-time photo group if checkout without photo is NOT allowed
-            if (outTimePhotoGroup && !allowCheckoutWithoutPhoto) {
-                outTimePhotoGroup.style.display = 'block';
+            // Handle auto check-in response
+            if (data.auto_checkin) {
+                // Update check-in time and status
+                const checkinTimeCell = currentRow.querySelector(`#checkin-time-${visitorId}`);
+                const statusCell = currentRow.querySelector(`#status-${visitorId}`);
+                
+                if (checkinTimeCell) checkinTimeCell.textContent = data.display_time;
+                if (statusCell) statusCell.textContent = 'Inside';
+                
+                // Hide check-in group and show checkout group
+                if (checkinGroup) checkinGroup.style.display = 'none';
+                const checkoutGroup = currentRow.querySelector(`#checkout-group-${visitorId}`);
+                if (checkoutGroup) checkoutGroup.style.display = 'block';
+                
+                // Show the out-time photo group after successful auto check-in
+                const outTimePhotoGroup = currentRow.querySelector(`#out-time-photo-group-${visitorId}`);
+                const allowCheckoutWithoutPhoto = localStorage.getItem('allowCheckoutWithoutPhoto') === 'true';
+                
+                // Only show out-time photo group if checkout without photo is NOT allowed
+                if (outTimePhotoGroup && !allowCheckoutWithoutPhoto) {
+                    outTimePhotoGroup.style.display = 'block';
+                }
             }
 
             // Use enhanced print function with retry and fallback
             printVisitorDetailsWithRetry(visitorId, 1, 3000);
 
-            alert('Photo uploaded successfully, visitor has been checked in, and visitor pass is being generated!');
+            if (data.auto_checkin) {
+                alert('Photo uploaded successfully and visitor has been automatically checked in! Visitor pass is being generated.');
+            } else {
+                alert('Photo uploaded successfully! You can now check in the visitor.');
+            }
         } else {
             alert(data.error || 'Error uploading photo');
         }
@@ -1977,27 +1989,47 @@ function loadVisitorsWithTimezone() {
         });
 }
         function uploadOutTimePhoto(event, visitorId) {
-            const file = event.target.files[0];
-            if (!file) return;
+    const file = event.target.files[0];
+    if (!file) return;
 
-            const formData = new FormData();
-            formData.append('photo', file);
-            formData.append('visitor_id', visitorId);
+    const formData = new FormData();
+    formData.append('photo', file);
+    formData.append('visitor_id', visitorId);
 
-            fetch('/upload_out_time_photo', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    updatePhotoPreview(file, 'out-time-preview-' + visitorId);
-                    document.getElementById(`checkout-btn-${visitorId}`).disabled = false;
-                } else {
-                    alert(data.error || 'Error uploading out time photo');
-                }
-            })
+    fetch('/upload_out_time_photo', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update photo preview or create marker
+            const previewElement = document.getElementById(`out-time-preview-${visitorId}`);
+            if (previewElement) {
+                previewElement.setAttribute('data-photo-uploaded', 'true');
+            }
+            
+            // Enable checkout button
+            const checkoutBtn = document.getElementById(`checkout-btn-${visitorId}`);
+            if (checkoutBtn) {
+                checkoutBtn.disabled = false;
+            }
+            
+            // Disable the out time photo button after successful upload
+            const outTimeBtn = document.getElementById(`take-out-photo-btn-${visitorId}`);
+            const outTimeCameraInput = document.getElementById(`out-time-camera-${visitorId}`);
+            if (outTimeBtn) outTimeBtn.disabled = true;
+            if (outTimeCameraInput) outTimeCameraInput.disabled = true;
+            
+            alert('Out time photo uploaded successfully!');
+        } else {
+            alert(data.error || 'Error uploading out time photo');
         }
+    })
+    .catch(error => {
+        alert('Error uploading out time photo: ' + error.message);
+    });
+}
 
         function updatePhotoPreview(file, previewId) {
             const img = document.getElementById(previewId);
@@ -2066,7 +2098,10 @@ function updateControlsBasedOnDates() {
                 controls.takeOutPhoto.disabled = false;
                 controls.outTimeCamera.disabled = false;
                 
-                const outTimePhotoExists = document.getElementById(`out-time-preview-${visitorId}`)?.src || '';
+                // Check if out time photo exists
+                const outTimePreview = document.getElementById(`out-time-preview-${visitorId}`);
+                const outTimePhotoExists = outTimePreview && outTimePreview.getAttribute('data-photo-uploaded') === 'true';
+                
                 controls.checkout.disabled = !(outTimePhotoExists || allowCheckoutWithoutPhoto);
                 
                 // Show/hide out-time photo group based on allowCheckoutWithoutPhoto setting
@@ -2371,6 +2406,18 @@ function toggleCheckout(visitorId, appointmentId) {
         return;
     }
 
+    // Check if out time photo is required and exists
+    const allowCheckoutWithoutPhoto = localStorage.getItem('allowCheckoutWithoutPhoto') === 'true';
+    if (!allowCheckoutWithoutPhoto) {
+        const outTimePreview = document.getElementById(`out-time-preview-${visitorId}`);
+        const hasOutTimePhoto = outTimePreview && outTimePreview.getAttribute('data-photo-uploaded') === 'true';
+        
+        if (!hasOutTimePhoto) {
+            alert('Please upload out time photo before checkout.');
+            return;
+        }
+    }
+
     // Add to ongoing checkouts set
     ongoingCheckouts.add(checkoutKey);
 
@@ -2382,7 +2429,7 @@ function toggleCheckout(visitorId, appointmentId) {
     }
 
     const userTimezone = getUserTimezone();
-    const currentTime = new Date().toISOString(); // Client's actual current time
+    const currentTime = new Date().toISOString();
     
     fetch('/toggle_checkout/' + visitorId, {
         method: 'POST',
@@ -2434,9 +2481,11 @@ function toggleCheckout(visitorId, appointmentId) {
                 // Hide checkout group and show completed badge in the specific row
                 const checkoutGroup = currentRow.querySelector(`#checkout-group-${visitorId}`);
                 const completedGroup = currentRow.querySelector(`#completed-group-${visitorId}`);
+                const outTimePhotoGroup = currentRow.querySelector(`#out-time-photo-group-${visitorId}`);
                 
                 if (checkoutGroup) checkoutGroup.style.display = 'none';
                 if (completedGroup) completedGroup.style.display = 'block';
+                if (outTimePhotoGroup) outTimePhotoGroup.style.display = 'none';
                 
                 // Disable the checkout button permanently in this row
                 const rowCheckoutBtn = currentRow.querySelector(`#checkout-btn-${visitorId}`);
@@ -2458,9 +2507,11 @@ function toggleCheckout(visitorId, appointmentId) {
                 
                 const checkoutGroup = document.getElementById('checkout-group-' + visitorId);
                 const completedGroup = document.getElementById('completed-group-' + visitorId);
+                const outTimePhotoGroup = document.getElementById(`out-time-photo-group-${visitorId}`);
                 
                 if (checkoutGroup) checkoutGroup.style.display = 'none';
                 if (completedGroup) completedGroup.style.display = 'block';
+                if (outTimePhotoGroup) outTimePhotoGroup.style.display = 'none';
                 
                 // Disable the checkout button permanently
                 if (checkoutBtn) {
