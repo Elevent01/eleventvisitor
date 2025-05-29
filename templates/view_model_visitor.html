@@ -524,20 +524,20 @@ body {
                                 </div>
                             </div>
                             <div class="photo-item">
-                                <h4>Out-Time Photo</h4>
-                                <div class="photo-container">
-                                    {% if visitor['OutTimePhoto'] %}
-                                        <img src="{{ url_for('get_out_time_photo', visitor_id=visitor.VisitorId) }}" 
-                                             alt="Out Time Photo" class="photo-preview" 
-                                             id="out-time-preview-{{ visitor.AppointmentId }}">
-                                    {% else %}
-                                        <div class="no-photo" id="out-time-preview-{{ visitor.AppointmentId }}">
-                                            <i class="fas fa-sign-out-alt fa-2x mb-2"></i><br>
-                                            No Out-Time Photo
-                                        </div>
-                                    {% endif %}
-                                </div>
-                            </div>
+                                 <h4>Out-Time Photo</h4>
+    <div class="photo-container">
+        {% if visitor['OutTimePhoto'] %}
+            <img src="{{ url_for('get_out_time_photo_by_appointment', appointment_id=visitor.AppointmentId) }}" 
+                 alt="Out Time Photo" class="photo-preview" 
+                 id="out-time-preview-{{ visitor.AppointmentId }}">
+        {% else %}
+            <div class="no-photo" id="out-time-preview-{{ visitor.AppointmentId }}">
+                <i class="fas fa-sign-out-alt fa-2x mb-2"></i><br>
+                No Out-Time Photo
+            </div>
+        {% endif %}
+    </div>
+</div>
                         </div>
                     </div>
                 </div>
