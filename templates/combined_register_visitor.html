@@ -497,8 +497,9 @@
                                    style="display:none;" 
                                    disabled>
                             {% if visitor.VisitorPhoto %}
-                                <img src="{{ url_for('get_visitor_photo_by_id', visitor_id=visitor.VisitorId) }}" 
-                                     alt="Visitor Photo" class="photo-preview" id="preview-{{ visitor.VisitorId }}-{{ visitor.AppointmentId }}">
+                               <img src="{{ url_for('get_visitor_photo_by_appointment', appointment_id=visitor.AppointmentId) }}" 
+                                             alt="Visitor Photo" class="photo-preview" 
+                                             id="preview-{{ visitor.AppointmentId }}">
                             {% else %}
                                 <div class="no-photo">No Photo</div>
                             {% endif %}
