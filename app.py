@@ -10,6 +10,7 @@ import time
 import cloudinary
 import cloudinary.uploader 
 import pytz
+import io
 from io import BytesIO
 from PIL import Image
 from flask_sqlalchemy import SQLAlchemy
