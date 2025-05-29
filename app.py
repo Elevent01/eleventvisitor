@@ -5514,7 +5514,33 @@ def get_out_time_photo(visitor_id):
         return "Error retrieving photo", 500
     finally:
         conn.close()
-
+@app.route('/get_out_time_photo_by_appointment/<appointment_id>')
+def get_out_time_photo_by_appointment(appointment_id):
+    conn = get_db_connection()
+    if conn is None:
+        return "Database connection error", 500
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT OutTimePhoto 
+                FROM VisitorVisitStatus 
+                WHERE AppointmentId = %s 
+                AND OutTimePhoto IS NOT NULL
+            """, (appointment_id,))
+            result = cur.fetchone()
+            
+            if result and result[0]:
+                from flask import Response
+                return Response(result[0], mimetype='image/jpeg')
+            else:
+                return "No photo found", 404
+                
+    except Exception as e:
+        logging.error(f'Error retrieving out time photo by appointment: {e}')
+        return "Error retrieving photo", 500
+    finally:
+        conn.close()
 
 @app.route('/get_visitor_photo_by_appointment/<appointment_id>')
 def get_visitor_photo_by_appointment(appointment_id):
