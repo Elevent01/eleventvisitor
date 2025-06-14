@@ -15,7 +15,7 @@ from io import BytesIO
 from PIL import Image
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import URLSafeTimedSerializer
-from flask import Flask, render_template, request, redirect, url_for, flash, session , jsonify , response 
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, Response
 import psycopg2
 import bcrypt
 from flask_wtf import CSRFProtect
