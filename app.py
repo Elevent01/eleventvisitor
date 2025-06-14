@@ -15,7 +15,7 @@ from io import BytesIO
 from PIL import Image
 from flask_sqlalchemy import SQLAlchemy
 from itsdangerous import URLSafeTimedSerializer
-from flask import Flask, render_template, request, redirect, url_for, flash, session , jsonify , Response 
+from flask import Flask, render_template, request, redirect, url_for, flash, session , jsonify , response 
 import psycopg2
 import bcrypt
 from flask_wtf import CSRFProtect
@@ -5261,6 +5261,47 @@ def edit_visitor(visitor_id=None):
                          can_quick_register=can_quick_register,
                          can_access_role_access=can_access_role_access)
 
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME', 'duzaxbw3p'),
+    api_key=os.getenv('CLOUDINARY_API_KEY', '954232224849344'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET', '47TabPoNUroYpe4TDdv4elAqI54')
+)
+
+def upload_to_cloudinary(photo_data, folder, public_id_prefix):
+    """
+    Upload photo to Cloudinary and return the URL
+    """
+    try:
+        # Convert binary data to file-like object
+        photo_stream = io.BytesIO(photo_data)
+        
+        # Generate unique public_id
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        public_id = f"{public_id_prefix}_{timestamp}"
+        
+        # Upload to Cloudinary
+        result = cloudinary.uploader.upload(
+            photo_stream,
+            folder=folder,
+            public_id=public_id,
+            resource_type="image",
+            format="jpg",
+            quality="auto:good",
+            fetch_format="auto"
+        )
+        
+        return {
+            'success': True,
+            'url': result['secure_url'],
+            'public_id': result['public_id']
+        }
+    except Exception as e:
+        logging.error(f"Cloudinary upload error: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
 @app.route('/upload_visitor_photo', methods=['POST'])
 def upload_visitor_photo():
     try:
@@ -5318,6 +5359,21 @@ def upload_visitor_photo():
             # Reset file pointer for any future operations
             photo.seek(0)
 
+            # Upload to Cloudinary
+            cloudinary_result = upload_to_cloudinary(
+                photo_data, 
+                "visitor_photos/in_time", 
+                f"visitor_in_{appointment_id}"
+            )
+            
+            if not cloudinary_result['success']:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Failed to upload photo to cloud storage: {cloudinary_result["error"]}'
+                }), 500
+
+            cloudinary_url = cloudinary_result['url']
+
             auto_checkin = False
             local_time = None
             
@@ -5327,20 +5383,20 @@ def upload_visitor_photo():
                 local_time = datetime.now(user_tz)
                 utc_time = local_time.astimezone(pytz.UTC)
                 
-                # Update with photo and auto check-in
+                # Update with photo URL and auto check-in (keep binary data as backup)
                 cur.execute("""
                     UPDATE VisitorVisitStatus 
-                    SET InTimePhoto = %s, VisitStatus = 'Inside', InTime = %s
+                    SET InTimePhoto = %s, InTimePhotoUrl = %s, VisitStatus = 'Inside', InTime = %s
                     WHERE AppointmentId = %s
-                """, (photo_data, utc_time, appointment_id))
+                """, (photo_data, cloudinary_url, utc_time, appointment_id))
                 auto_checkin = True
             else:
                 # Just update the photo
                 cur.execute("""
                     UPDATE VisitorVisitStatus 
-                    SET InTimePhoto = %s
+                    SET InTimePhoto = %s, InTimePhotoUrl = %s
                     WHERE AppointmentId = %s
-                """, (photo_data, appointment_id))
+                """, (photo_data, cloudinary_url, appointment_id))
 
             # Add to update history
             cur.execute("""
@@ -5357,7 +5413,8 @@ def upload_visitor_photo():
 
             response_data = {
                 'success': True,
-                'message': 'Photo uploaded successfully!'
+                'message': 'Photo uploaded successfully!',
+                'photo_url': cloudinary_url
             }
 
             if auto_checkin and local_time:
@@ -5388,6 +5445,8 @@ def upload_out_time_photo():
         return jsonify({'success': False, 'error': 'No selected photo.'}), 400
     
     visitor_id = request.form.get('visitor_id')
+    appointment_id = request.form.get('appointment_id', visitor_id)  # Use appointment_id if available
+    
     conn = get_db_connection()
     
     if conn is None:
@@ -5398,20 +5457,39 @@ def upload_out_time_photo():
             # Read photo data as binary
             photo_data = photo.read()
             
-            # Update the VisitorVisitStatus table with the new photo data
+            # Upload to Cloudinary
+            cloudinary_result = upload_to_cloudinary(
+                photo_data, 
+                "visitor_photos/out_time", 
+                f"visitor_out_{appointment_id or visitor_id}"
+            )
+            
+            if not cloudinary_result['success']:
+                return jsonify({
+                    'success': False, 
+                    'error': f'Failed to upload photo to cloud storage: {cloudinary_result["error"]}'
+                }), 500
+
+            cloudinary_url = cloudinary_result['url']
+            
+            # Update the VisitorVisitStatus table with the new photo data and URL
             cur.execute("""
                 UPDATE VisitorVisitStatus 
-                SET OutTimePhoto = %s 
+                SET OutTimePhoto = %s, OutTimePhotoUrl = %s 
                 WHERE VisitorId = %s 
                 AND CreatedAt = (
                     SELECT MAX(CreatedAt) 
                     FROM VisitorVisitStatus 
                     WHERE VisitorId = %s
                 )
-            """, (photo_data, visitor_id, visitor_id))
+            """, (photo_data, cloudinary_url, visitor_id, visitor_id))
             conn.commit()
         
-        return jsonify({'success': True, 'message': 'Out time photo uploaded successfully!'})
+        return jsonify({
+            'success': True, 
+            'message': 'Out time photo uploaded successfully!',
+            'photo_url': cloudinary_url
+        })
     
     except Exception as e:
         logging.error(f'Error uploading out time photo: {e}')
@@ -5421,7 +5499,7 @@ def upload_out_time_photo():
         conn.close()
 
 
-# Add these new routes to serve photos from database
+# Enhanced photo serving routes - now serve from Cloudinary URL first, fallback to database
 @app.route('/get_visitor_photo/<visitor_id>')
 def get_visitor_photo(visitor_id):
     conn = get_db_connection()
@@ -5431,21 +5509,25 @@ def get_visitor_photo(visitor_id):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT InTimePhoto 
+                SELECT InTimePhoto, InTimePhotoUrl 
                 FROM VisitorVisitStatus 
                 WHERE VisitorId = %s 
-                AND InTimePhoto IS NOT NULL
+                AND (InTimePhoto IS NOT NULL OR InTimePhotoUrl IS NOT NULL)
                 ORDER BY CreatedAt DESC 
                 LIMIT 1
             """, (visitor_id,))
             result = cur.fetchone()
             
-            if result and result[0]:
-                # Return the binary data as image
-                from flask import Response
-                return Response(result[0], mimetype='image/jpeg')
-            else:
-                return "No photo found", 404
+            if result:
+                # If Cloudinary URL exists, redirect to it
+                if result[1]:  # InTimePhotoUrl
+                    from flask import redirect
+                    return redirect(result[1])
+                # Fallback to database binary data
+                elif result[0]:  # InTimePhoto
+                    return Response(result[0], mimetype='image/jpeg')
+            
+            return "No photo found", 404
                 
     except Exception as e:
         logging.error(f'Error retrieving visitor photo: {e}')
@@ -5463,20 +5545,25 @@ def get_visitor_photo_by_id(visitor_id):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT InTimePhoto 
+                SELECT InTimePhoto, InTimePhotoUrl 
                 FROM VisitorVisitStatus 
                 WHERE VisitorId = %s 
-                AND InTimePhoto IS NOT NULL
+                AND (InTimePhoto IS NOT NULL OR InTimePhotoUrl IS NOT NULL)
                 ORDER BY CreatedAt DESC 
                 LIMIT 1
             """, (visitor_id,))
             result = cur.fetchone()
             
-            if result and result[0]:
-                from flask import Response
-                return Response(result[0], mimetype='image/jpeg')
-            else:
-                return "No photo found", 404
+            if result:
+                # If Cloudinary URL exists, redirect to it
+                if result[1]:  # InTimePhotoUrl
+                    from flask import redirect
+                    return redirect(result[1])
+                # Fallback to database binary data
+                elif result[0]:  # InTimePhoto
+                    return Response(result[0], mimetype='image/jpeg')
+                    
+            return "No photo found", 404
                 
     except Exception as e:
         logging.error(f'Error retrieving visitor photo: {e}')
@@ -5494,26 +5581,33 @@ def get_out_time_photo(visitor_id):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT OutTimePhoto 
+                SELECT OutTimePhoto, OutTimePhotoUrl 
                 FROM VisitorVisitStatus 
                 WHERE VisitorId = %s 
-                AND OutTimePhoto IS NOT NULL
+                AND (OutTimePhoto IS NOT NULL OR OutTimePhotoUrl IS NOT NULL)
                 ORDER BY CreatedAt DESC 
                 LIMIT 1
             """, (visitor_id,))
             result = cur.fetchone()
             
-            if result and result[0]:
-                from flask import Response
-                return Response(result[0], mimetype='image/jpeg')
-            else:
-                return "No photo found", 404
+            if result:
+                # If Cloudinary URL exists, redirect to it
+                if result[1]:  # OutTimePhotoUrl
+                    from flask import redirect
+                    return redirect(result[1])
+                # Fallback to database binary data
+                elif result[0]:  # OutTimePhoto
+                    return Response(result[0], mimetype='image/jpeg')
+                    
+            return "No photo found", 404
                 
     except Exception as e:
         logging.error(f'Error retrieving out time photo: {e}')
         return "Error retrieving photo", 500
     finally:
         conn.close()
+
+
 @app.route('/get_out_time_photo_by_appointment/<appointment_id>')
 def get_out_time_photo_by_appointment(appointment_id):
     conn = get_db_connection()
@@ -5523,24 +5617,30 @@ def get_out_time_photo_by_appointment(appointment_id):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT OutTimePhoto 
+                SELECT OutTimePhoto, OutTimePhotoUrl 
                 FROM VisitorVisitStatus 
                 WHERE AppointmentId = %s 
-                AND OutTimePhoto IS NOT NULL
+                AND (OutTimePhoto IS NOT NULL OR OutTimePhotoUrl IS NOT NULL)
             """, (appointment_id,))
             result = cur.fetchone()
             
-            if result and result[0]:
-                from flask import Response
-                return Response(result[0], mimetype='image/jpeg')
-            else:
-                return "No photo found", 404
+            if result:
+                # If Cloudinary URL exists, redirect to it
+                if result[1]:  # OutTimePhotoUrl
+                    from flask import redirect
+                    return redirect(result[1])
+                # Fallback to database binary data
+                elif result[0]:  # OutTimePhoto
+                    return Response(result[0], mimetype='image/jpeg')
+                    
+            return "No photo found", 404
                 
     except Exception as e:
         logging.error(f'Error retrieving out time photo by appointment: {e}')
         return "Error retrieving photo", 500
     finally:
         conn.close()
+
 
 @app.route('/get_visitor_photo_by_appointment/<appointment_id>')
 def get_visitor_photo_by_appointment(appointment_id):
@@ -5551,22 +5651,89 @@ def get_visitor_photo_by_appointment(appointment_id):
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT InTimePhoto 
+                SELECT InTimePhoto, InTimePhotoUrl 
                 FROM VisitorVisitStatus 
                 WHERE AppointmentId = %s 
-                AND InTimePhoto IS NOT NULL
+                AND (InTimePhoto IS NOT NULL OR InTimePhotoUrl IS NOT NULL)
             """, (appointment_id,))
             result = cur.fetchone()
             
-            if result and result[0]:
-                from flask import Response
-                return Response(result[0], mimetype='image/jpeg')
-            else:
-                return "No photo found", 404
+            if result:
+                # If Cloudinary URL exists, redirect to it
+                if result[1]:  # InTimePhotoUrl
+                    from flask import redirect
+                    return redirect(result[1])
+                # Fallback to database binary data
+                elif result[0]:  # InTimePhoto
+                    return Response(result[0], mimetype='image/jpeg')
+                    
+            return "No photo found", 404
                 
     except Exception as e:
         logging.error(f'Error retrieving visitor photo: {e}')
         return "Error retrieving photo", 500
+    finally:
+        conn.close()
+
+# Additional utility routes for direct Cloudinary URLs
+@app.route('/get_visitor_photo_url/<visitor_id>')
+def get_visitor_photo_url(visitor_id):
+    """Return JSON with photo URL for frontend usage"""
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'error': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT InTimePhotoUrl 
+                FROM VisitorVisitStatus 
+                WHERE VisitorId = %s 
+                AND InTimePhotoUrl IS NOT NULL
+                ORDER BY CreatedAt DESC 
+                LIMIT 1
+            """, (visitor_id,))
+            result = cur.fetchone()
+            
+            if result and result[0]:
+                return jsonify({'success': True, 'photo_url': result[0]})
+            else:
+                return jsonify({'success': False, 'error': 'No photo found'}), 404
+                
+    except Exception as e:
+        logging.error(f'Error retrieving visitor photo URL: {e}')
+        return jsonify({'success': False, 'error': 'Error retrieving photo URL'}), 500
+    finally:
+        conn.close()
+
+
+@app.route('/get_out_time_photo_url/<visitor_id>')
+def get_out_time_photo_url(visitor_id):
+    """Return JSON with out time photo URL for frontend usage"""
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'error': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT OutTimePhotoUrl 
+                FROM VisitorVisitStatus 
+                WHERE VisitorId = %s 
+                AND OutTimePhotoUrl IS NOT NULL
+                ORDER BY CreatedAt DESC 
+                LIMIT 1
+            """, (visitor_id,))
+            result = cur.fetchone()
+            
+            if result and result[0]:
+                return jsonify({'success': True, 'photo_url': result[0]})
+            else:
+                return jsonify({'success': False, 'error': 'No photo found'}), 404
+                
+    except Exception as e:
+        logging.error(f'Error retrieving out time photo URL: {e}')
+        return jsonify({'success': False, 'error': 'Error retrieving photo URL'}), 500
     finally:
         conn.close()
 
