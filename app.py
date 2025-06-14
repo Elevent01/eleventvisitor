@@ -1173,6 +1173,42 @@ def compress_image(image_file, max_size_mb=3, max_width=1024, max_height=1024, q
         return None
 
 
+def upload_to_cloudinary(photo_data, folder, public_id_prefix):
+    """
+    Upload photo to Cloudinary and return the URL
+    """
+    try:
+        # Convert binary data to file-like object
+        photo_stream = io.BytesIO(photo_data)
+        
+        # Generate unique public_id
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        public_id = f"{public_id_prefix}_{timestamp}"
+        
+        # Upload to Cloudinary
+        result = cloudinary.uploader.upload(
+            photo_stream,
+            folder=folder,
+            public_id=public_id,
+            resource_type="image",
+            format="jpg",
+            quality="auto:good",
+            fetch_format="auto"
+        )
+        
+        return {
+            'success': True,
+            'url': result['secure_url'],
+            'public_id': result['public_id']
+        }
+    except Exception as e:
+        logging.error(f"Cloudinary upload error: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
 @app.route('/upload_photo', methods=['POST'])
 def upload_photo():
     if 'user_id' not in session:
@@ -1215,14 +1251,31 @@ def upload_photo():
         final_size_mb = len(compressed_photo_data) / (1024 * 1024)
         logging.info(f'Compressed image size: {final_size_mb:.2f} MB')
         
+        # Upload to Cloudinary
+        cloudinary_result = upload_to_cloudinary(
+            compressed_photo_data, 
+            "profile_photos", 
+            f"employee_{user_id}"
+        )
+        
+        if not cloudinary_result['success']:
+            flash(f'Failed to upload photo to cloud storage: {cloudinary_result["error"]}', 'danger')
+            return redirect(url_for('dashboard'))
+
+        cloudinary_url = cloudinary_result['url']
+        
         with conn.cursor() as cur:
             # Check if user exists
             cur.execute("SELECT Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
             existing_record = cur.fetchone()
             
             if existing_record:
-                # Update the photo (replace existing)
-                cur.execute("UPDATE Employee SET Photo = %s WHERE Employee_Id = %s", (compressed_photo_data, user_id))
+                # Update the photo with both binary data (backup) and Cloudinary URL
+                cur.execute("""
+                    UPDATE Employee 
+                    SET Photo = %s, PhotoUrl = %s 
+                    WHERE Employee_Id = %s
+                """, (compressed_photo_data, cloudinary_url, user_id))
                 flash(f'Photo updated successfully! (Size: {final_size_mb:.2f} MB)', 'success')
             else:
                 flash('User not found in database.', 'danger')
@@ -1240,7 +1293,7 @@ def upload_photo():
     return redirect(url_for('dashboard'))
 
 
-# Photo retrieve karne ke liye ye route add kariye
+# Enhanced photo retrieve route - serve from Cloudinary URL first, fallback to database
 @app.route('/get_photo/<user_id>')
 def get_photo(user_id):
     conn = get_db_connection()
@@ -1250,15 +1303,19 @@ def get_photo(user_id):
     
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
+            cur.execute("SELECT Photo, PhotoUrl FROM Employee WHERE Employee_Id = %s", (user_id,))
             result = cur.fetchone()
             
-            if result and result[0]:
-                photo_data = result[0]
-                # Return photo as response with appropriate content type
-                return Response(photo_data, mimetype='image/jpeg')
-            else:
-                return "No photo found", 404
+            if result:
+                # If Cloudinary URL exists, redirect to it
+                if result[1]:  # PhotoUrl
+                    from flask import redirect
+                    return redirect(result[1])
+                # Fallback to database binary data
+                elif result[0]:  # Photo
+                    return Response(result[0], mimetype='image/jpeg')
+                    
+            return "No photo found", 404
                 
     except Exception as e:
         logging.error(f'Error retrieving photo: {e}')
@@ -1267,7 +1324,31 @@ def get_photo(user_id):
         conn.close()
 
 
-    return redirect(url_for('dashboard'))
+# Additional utility route for direct Cloudinary URLs
+@app.route('/get_photo_url/<user_id>')
+def get_photo_url(user_id):
+    """Return JSON with photo URL for frontend usage"""
+    conn = get_db_connection()
+    if conn is None:
+        return jsonify({'success': False, 'error': 'Database connection error'}), 500
+    
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT PhotoUrl FROM Employee WHERE Employee_Id = %s", (user_id,))
+            result = cur.fetchone()
+            
+            if result and result[0]:
+                return jsonify({'success': True, 'photo_url': result[0]})
+            else:
+                return jsonify({'success': False, 'error': 'No photo found'}), 404
+                
+    except Exception as e:
+        logging.error(f'Error retrieving photo URL: {e}')
+        return jsonify({'success': False, 'error': 'Error retrieving photo URL'}), 500
+    finally:
+        conn.close()
+
+
 # Initialize the serializer for token generation
 s = URLSafeTimedSerializer('your-secret-key')
 
