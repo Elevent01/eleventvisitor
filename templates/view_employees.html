@@ -38,19 +38,19 @@
 
         /* Profile header styling */
         .profile-header {
-    background-color: white;
-    border-radius: 8px 8px 0 0;
-    padding: 15px;
-    margin-bottom: 0; 
-    box-shadow: var(--box-shadow);
-    border-top: 4px solid #1B5E20;
-    border-left: 2px solid rgba(59, 100, 112, 0.255);
-    border-right: 2px solid rgba(59, 100, 112, 0.255);
-    border-bottom: none;
-    position: relative; 
-    z-index: 2;
-    display: block; /* Ensure it's displayed */
-}
+            background-color: white;
+            border-radius: 8px 8px 0 0;
+            padding: 15px;
+            margin-bottom: 0; 
+            box-shadow: var(--box-shadow);
+            border-top: 4px solid #1B5E20;
+            border-left: 2px solid rgba(59, 100, 112, 0.255);
+            border-right: 2px solid rgba(59, 100, 112, 0.255);
+            border-bottom: none;
+            position: relative; 
+            z-index: 2;
+            display: block; /* Ensure it's displayed */
+        }
 
         .profile-header::after {  
             content: '';  
@@ -79,17 +79,17 @@
         }
 
         .table-container {
-    border-left: 2px solid rgba(59, 100, 112, 0.255);
-    border-right: 2px solid rgba(59, 100, 112, 0.255);
-    border-bottom: 2px solid rgba(59, 100, 112, 0.255);
-    border-top: 4px solid #1B5E20; /* Add this if the header is not showing */
-    border-radius: 8px 8px 0 0;
-    padding: 10px;
-    margin-top: 5px; /* Increase this value */
-    background-color: white;
-    box-shadow: var(--box-shadow);
-    position: relative;
-}
+            border-left: 2px solid rgba(59, 100, 112, 0.255);
+            border-right: 2px solid rgba(59, 100, 112, 0.255);
+            border-bottom: 2px solid rgba(59, 100, 112, 0.255);
+            border-top: 4px solid #1B5E20; /* Add this if the header is not showing */
+            border-radius: 8px 8px 0 0;
+            padding: 10px;
+            margin-top: 5px; /* Increase this value */
+            background-color: white;
+            box-shadow: var(--box-shadow);
+            position: relative;
+        }
 
         /* Table styling */
         .table {
@@ -336,8 +336,10 @@
                         <tr class="employee-row">
                             <td>
                                 <div class="profile-photo">
-                                    {% if employee.Photo %}
-                                        <img src="{{ url_for('static', filename='profile_photos/' + employee.Photo) }}" alt="Profile Picture">
+                                    {% if employee.PhotoUrl %}
+                                        <img src="{{ employee.PhotoUrl }}" alt="Profile Picture">
+                                    {% elif employee.Photo %}
+                                        <img src="{{ url_for('get_photo', user_id=employee.Employee_Id) }}" alt="Profile Picture">
                                     {% else %}
                                         <img src="{{ url_for('static', filename='default_profile.png') }}" alt="Default Profile Picture">
                                     {% endif %}
