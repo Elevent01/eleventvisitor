@@ -3164,6 +3164,7 @@ def view_employees():
     return render_template('view_employees.html', 
                          employees=employee_list,
                          user_id=user_id,
+                         csrf_token=generate_csrf(),
                          photo_filename=photo_filename,
                          show_forget_password=show_forget_password,
                          can_view_employees=can_view_employees,
