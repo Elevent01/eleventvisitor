@@ -3053,9 +3053,11 @@ def view_employees():
                 return redirect(url_for('login'))
 
             # Fetch profile photo
-            cur.execute("SELECT Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
+            cur.execute("SELECT PhotoUrl, Photo FROM Employee WHERE Employee_Id = %s", (user_id,))
             photo_result = cur.fetchone()
-            photo_filename = photo_result[0] if photo_result else None
+            photo_filename = None
+            if photo_result:
+                photo_filename = photo_result[0] if photo_result[0] else photo_result[1]  # Prefer URL over binary
             
             # Check if the user has permission to view employees
             if not can_view_employees:
@@ -3081,12 +3083,15 @@ def view_employees():
             allowed_company_names = list(set(allowed_company_names))
             
             # Convert company names to company IDs
-            cur.execute("""
-                SELECT CompanyID::text 
-                FROM CompanyDetails 
-                WHERE CompanyName = ANY(%s)
-            """, (allowed_company_names,))
-            allowed_company_ids = [row[0] for row in cur.fetchall()]
+            if allowed_company_names:
+                cur.execute("""
+                    SELECT CompanyID::text 
+                    FROM CompanyDetails 
+                    WHERE CompanyName = ANY(%s)
+                """, (allowed_company_names,))
+                allowed_company_ids = [row[0] for row in cur.fetchall()]
+            else:
+                allowed_company_ids = []
             
             if not allowed_company_ids:
                 flash('You do not have access to any company data.', 'info')
@@ -3110,7 +3115,8 @@ def view_employees():
                                     can_add_zone=can_add_zone,
                                     can_add_zone_area=can_add_zone_area,
                                     can_quick_register=can_quick_register,
-                                    can_access_role_access=can_access_role_access)
+                                    can_access_role_access=can_access_role_access,
+                                    csrf_token=generate_csrf())
             
             # Get employees only from allowed companies with company details
             cur.execute("""
@@ -3119,9 +3125,9 @@ def view_employees():
                     e.Designation, e.Department, e.PhoneNumber, 
                     e.DateOfBirth, e.DateOfJoining, e.DateOfLeave, 
                     e.Status, e.Address, e.Photo, e.Company, 
-                    cd.CompanyName, e.ReportingManager
+                    cd.CompanyName, e.ReportingManager, e.PhotoUrl
                 FROM Employee e
-                JOIN CompanyDetails cd ON e.Company = cd.CompanyID::text
+                LEFT JOIN CompanyDetails cd ON e.Company = cd.CompanyID::text
                 WHERE e.Company = ANY(%s)
                 ORDER BY e.First_Name ASC
             """, (allowed_company_ids,))
@@ -3134,33 +3140,39 @@ def view_employees():
             print("Number of employees found:", len(employees))
             
             if employees:
-                employee_list = [{
-                    'Employee_Id': emp[0],
-                    'First_Name': emp[1],
-                    'Last_Name': emp[2],
-                    'Email': emp[3],
-                    'Designation': emp[4],
-                    'Department': emp[5],
-                    'PhoneNumber': emp[6],
-                    'DateOfBirth': emp[7],
-                    'DateOfJoining': emp[8],
-                    'DateOfLeave': emp[9],
-                    'Status': emp[10],
-                    'Address': emp[11],
-                    'Photo': emp[12],
-                    'Company': emp[14], 
-                    'ReportingManager': emp[15]
-                } for emp in employees]
+                employee_list = []
+                for emp in employees:
+                    employee_dict = {
+                        'Employee_Id': emp[0],
+                        'First_Name': emp[1] if emp[1] else '',
+                        'Last_Name': emp[2] if emp[2] else '',
+                        'Email': emp[3] if emp[3] else '',
+                        'Designation': emp[4] if emp[4] else '',
+                        'Department': emp[5] if emp[5] else '',
+                        'PhoneNumber': emp[6] if emp[6] else '',
+                        'DateOfBirth': emp[7] if emp[7] else '',
+                        'DateOfJoining': emp[8] if emp[8] else '',
+                        'DateOfLeave': emp[9] if emp[9] else '',
+                        'Status': emp[10] if emp[10] is not None else True,
+                        'Address': emp[11] if emp[11] else '',
+                        'Photo': emp[12] if emp[12] else None,
+                        'Company': emp[14] if emp[14] else '', 
+                        'ReportingManager': emp[15] if emp[15] else '',
+                        'PhotoUrl': emp[16] if len(emp) > 16 and emp[16] else None
+                    }
+                    employee_list.append(employee_dict)
             else:
                 flash('No employees found in your accessible companies.', 'info')
     
     except Exception as e:
         logging.error(f'Error in view_employees: {e}')
+        logging.error(f'Traceback: {traceback.format_exc()}')
         flash('An error occurred while fetching employees. Please try again.', 'danger')
         return redirect(url_for('dashboard'))
     
     finally:
-        conn.close()
+        if conn:
+            conn.close()
     
     return render_template('view_employees.html', 
                          employees=employee_list,
@@ -3184,6 +3196,10 @@ def view_employees():
                          can_add_zone_area=can_add_zone_area,
                          can_quick_register=can_quick_register,
                          can_access_role_access=can_access_role_access)
+
+
+# Initialize the serializer for token generation
+s = URLSafeTimedSerializer('your-secret-key')
 @app.route('/get_role_employee_view_companies', methods=['GET'])
 def get_role_employee_view_companies():
     company_id = request.args.get('companyId')
