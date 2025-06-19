@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 from flask_mail import Mail, Message
 from werkzeug.utils import secure_filename
 from datetime import datetime, date
+from flask_wtf.csrf import generate_csrf
 from flask_wtf import FlaskForm
 from wtforms import BooleanField, SubmitField
 from functools import wraps
